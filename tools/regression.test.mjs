@@ -8,9 +8,13 @@
  * 2. Boot cleanup: ui.installStyles() removed every matching element, which
  *    detached the panel that had just been built - the debug panel silently
  *    stopped opening and updating.
+ * 3. Version plumbing: @version and RG.version must agree, and the last commit
+ *    must have bumped @version when it touched src/, otherwise Tampermonkey
+ *    silently keeps serving the installed copy and re-pasting is the only fix.
  */
 
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -161,6 +165,37 @@ function loadModules(files) {
     const meta = (entry.match(/@version\s+(\S+)/) || [])[1];
     const boot = (entry.match(/RG\.version\s*=\s*'([^']+)'/) || [])[1];
     check('entry @version matches the RG.version the panel shows', !!meta && meta === boot, `@version=${meta}, RG.version=${boot}`);
+}
+
+/* -- 4. a push without a @version bump is invisible to Tampermonkey ----- */
+
+{
+    const git = (...args) => {
+        try { return execFileSync('git', args, { cwd: root, encoding: 'utf8' }); }
+        catch (_) { return null; }
+    };
+    const changed = git('diff', '--name-only', 'HEAD~1', 'HEAD');
+    if (changed === null) {
+        console.log('SKIP  last commit bumps @version (no git history here)');
+    } else {
+        const srcChanged = changed.split(/\r?\n/).filter(f => /^src\//.test(f));
+        const versionAt = ref => {
+            const s = git('show', `${ref}:redgifs.user.js`);
+            return s && (s.match(/@version\s+(\S+)/) || [])[1];
+        };
+        const cmp = (a, b) => {
+            const pa = String(a || '').split('.').map(Number), pb = String(b || '').split('.').map(Number);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                const d = (pa[i] || 0) - (pb[i] || 0);
+                if (d) return Math.sign(d);
+            }
+            return 0;
+        };
+        const before = versionAt('HEAD~1'), after = versionAt('HEAD');
+        check('last commit bumps @version, or Tampermonkey never installs it',
+            srcChanged.length === 0 || cmp(after, before) > 0,
+            `src files in HEAD: ${srcChanged.length}, @version ${before} -> ${after}`);
+    }
 }
 
 const failed = results.filter(r => !r.ok);

@@ -28,6 +28,35 @@ node tools/bundle.mjs
 
 The bundle is self-contained and needs no `@require` lines.
 
+## Auto-update (no re-pasting)
+
+`redgifs.user.js` already carries the two keys that let Tampermonkey pull
+changes on its own:
+
+```
+// @updateURL    .../main/redgifs.user.js   <- polled by the extension
+// @downloadURL  .../main/redgifs.user.js   <- installed when @version is newer
+```
+
+Two rules decide whether you ever touch the block again:
+
+- **Every push that changes `src/` bumps `@version`** (and the `RG.version`
+  line right below the block). Tampermonkey installs a remote script *only*
+  when its `@version` is higher than the installed one — a bump-less push is
+  invisible to the extension, and re-pasting is then the only fix.
+  `node tools/regression.test.mjs` fails the build when a commit touched
+  `src/` without bumping it.
+- **The polling frequency lives in the extension, not in metadata** — no
+  metadata key can shorten it. In Tampermonkey: Settings → update interval
+  (*daily* is fine), enable *Automatic installation* (TM 5.5+ splits the check
+  from the install), and while iterating set Config Mode → *Advanced* →
+  `Externals > Update Interval` to *always*, otherwise the `@require`d
+  `src/*.js` files stay cached even after the script itself updates.
+
+Afterwards just reload the redgifs.com tab. The debug panel header shows the
+running version (`v0.2.4`), so you can tell at a glance whether the update
+landed.
+
 ## Layout
 
 ```
