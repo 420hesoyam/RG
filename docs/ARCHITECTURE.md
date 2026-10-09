@@ -2,19 +2,35 @@
 
 ## Why this shape
 
-A userscript that is `@require`d is not a module system — every file shares one
-global scope and runs top to bottom. Two constraints follow:
+The userscript runs as one shared global scope, and two constraints follow:
 
-1. **Order is load order.** `@require` executes in header order. Filename
-   prefixes (`00-`, `10-`, ... `90-`) encode that order so the repo stays
-   readable and a new file can be slotted in without touching the header's
-   meaning.
+1. **Order is load order.** The `MODULES` array in `redgifs.user.js` is
+   evaluated top to bottom. Filename prefixes (`00-`, `10-`, ... `90-`) encode
+   that order so the repo stays readable and a new file can be slotted in
+   without touching the meaning of anything else.
 2. **One namespace, many modules.** Each file is an IIFE that takes `window.RG`
    and publishes only what later files need. Everything is reachable from the
    console as `RG.*` for debugging, but nothing leaks as a bare global.
 
-Modules never require a build step. If `@require` breaks, the bundle is a
-concatenation fallback (`tools/bundle.mjs`).
+The entry file fetches `src/*.js` itself and evaluates each one with an indirect
+`eval` instead of declaring `@require`. That is deliberate: Tampermonkey caches
+`@require`d files until it installs a new script version, so a pushed fix can sit
+in that cache and a reload keeps running yesterday's code. Fetching at runtime
+means the newest `main` is what runs, and the AUTONAV panel's sync button can
+cache-bust and reload. The last good copy of every module is kept in
+`localStorage` (`rg_mod_cache`) so an offline start still works.
+
+Consequences to keep in mind:
+
+- The loader is inline in `redgifs.user.js`, not in `src/` — `src/00-core.js` is
+  itself fetched, so nothing in `src/` can exist before it runs.
+- redgifs.com sends no CSP, so `eval` is allowed. If that ever changes the
+  loader breaks first and loudest.
+- `tools/regression.test.mjs` fails if `MODULES` and `src/` drift apart, so a new
+  module cannot be added and forgotten.
+
+For local testing, `tools/bundle.mjs` concatenates `src/*` into a single file
+instead, skipping the loader entirely.
 
 ## Layers
 
@@ -46,10 +62,11 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 | `RG.bset`, `RG.blk` | blocked-user Set + add/remove/toggleFiller |
 | `RG.u` | `debounce`, `clamp`, `rnd`, `rint`, `tag`, `on`, `click`, `css` |
 | `RG.$` | `getElementById` |
-| `RG.version` | script version, handed over by the entry file (mirrors `@version`) |
+| `RG.modules`, `RG.syncAndReload`, `RG.fetchRemoteVersion` | entry-file loader: module list, cache-busted sync + reload, remote `@version` probe |
+| `RG.version` | script version, from `VERSION` next to the `@version` in the entry |
 | `RG.runId` | per-run token; every element this run owns carries it as `data-rg-run` |
 | `RG.ui` | icons, stylesheet, `show`, `flashUpdate`, `drag`, `clampToViewport`, `showDropdown`, `closeDropdown` |
-| `RG.ensurePanel`, `RG.panel`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
+| `RG.panel`, `RG.ensurePanel`, `RG.syncModules`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
 | `RG.menu`, `RG.getOrCreateMenu`, `RG.refresh`, `RG.refreshMenu` | control center |
 | `RG.getActiveEl*`, `RG.getMediaId`, `RG.extractUser*`, `RG.getDomCached`, `RG.isImageEl`, `RG.checkFillerBlocked`, `RG.ensureUIExists` | DOM probes |
 | `RG.setRate`, `RG.applyActiveSpeed`, `RG.handleNewVideo`, `RG.commitBullet`, `RG.tryBulletJump`, `RG.maybeRngSeek`, `RG.bulletFinished`, `RG.loopShouldContinue`, `RG.applyLoopEffects`, `RG.setLoopMode`, `RG.applyBulletMode`, `RG.setPhotoMode` | playback |
@@ -131,8 +148,9 @@ If you add a probe, cache it the same way or accept the layout cost.
 
 1. Name it `<NN>-name.js` with the right `NN` prefix.
 2. IIFE over `window.RG`, `'use strict'`, publish a `RG.*` name.
-3. Add one `@require` line to `redgifs.user.js` in the matching position.
-4. Re-run `node tools/bundle.mjs` and `node --check` on the new file.
+3. Add it to the `MODULES` array in `redgifs.user.js` in the right position —
+   the regression suite fails if `src/` and `MODULES` disagree.
+4. Re-run `node tools/bundle.mjs` and `node tools/regression.test.mjs`.
 
 Adding a mode is cheaper: add an entry to the relevant table in `00-core.js`
 (`RG.bm` / `RG.lm` / `RG.pm`), then add a `case` in

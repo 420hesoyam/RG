@@ -26,6 +26,7 @@
                     <span style="font-family:monospace; font-size:9px; color:#7A7985; letter-spacing:0;">v${RG.version}</span>
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
+                    <button type="button" id="rg-sync-btn" class="rg-icobtn" aria-label="Sync modules and reload" title="Sync modules + reload">${ICO.sync}</button>
                     <button type="button" id="rg-rst-btn" class="rg-icobtn" aria-label="Reset panel position" title="Reset position">${ICO.reset}</button>
                     <button type="button" id="rg-cls-btn" class="rg-icobtn" aria-label="Close debug panel" title="Close">✕</button>
                 </div>
@@ -68,6 +69,7 @@
             status: p.querySelector('#rg-status'), id: p.querySelector('#rg-id'),
             spd: p.querySelector('#rg-spd'), tmr: p.querySelector('#rg-tmr'), loop: p.querySelector('#rg-loop'),
             rst: p.querySelector('#rg-rst-btn'), cls: p.querySelector('#rg-cls-btn'),
+            sync: p.querySelector('#rg-sync-btn'),
             statTot: p.querySelector('#rg-stat-tot'), statStd: p.querySelector('#rg-stat-std'),
             statBul: p.querySelector('#rg-stat-bul'), statFil: p.querySelector('#rg-stat-fil'),
             statCnt: p.querySelector('#rg-stats-cnt'), statChv: p.querySelector('#rg-stat-chv'),
@@ -86,12 +88,31 @@
 
     /* -- bindings ----------------------------------------------------------- */
     function bind() {
-        ui.drag(R.hdr, panel, { ignore: '#rg-cls-btn, #rg-rst-btn', onEnd: ui.savePos('rg_panel_pos')(panel) });
+        ui.drag(R.hdr, panel, { ignore: '#rg-cls-btn, #rg-rst-btn, #rg-sync-btn', onEnd: ui.savePos('rg_panel_pos')(panel) });
         u.click(R.rst, resetDebugPosition);
+        u.click(R.sync, syncModules);
         u.click(R.cls, () => { S.showDebug = false; RG.st.set('rg_debug_enabled', 'false'); updateDebugPanel(); });
         u.click(R.statsHdr, () => { S.isStatsExpanded = !S.isStatsExpanded; RG.st.set('rg_stats_expanded', S.isStatsExpanded); updateDebugPanel(); });
         u.click(R.blkHdr, () => { S.isBlockedExpanded = !S.isBlockedExpanded; RG.st.set('rg_blocked_expanded', S.isBlockedExpanded); updateDebugPanel(); });
     }
+
+    /* -- sync: cache-busted refetch of every module, then reload ----------- */
+    function syncModules() {
+        if (!RG.syncAndReload) { setDebug('Sync unavailable', '--'); return; }
+        R.sync.disabled = true;
+        R.sync.classList.add('rg-spin');
+        setDebug('Syncing modules', '--');
+        RG.fetchRemoteVersion()
+            .then(v => setDebug(v && v !== RG.version ? `Updated ${RG.version} to ${v}` : 'Already current', v || RG.version))
+            .catch(() => { })
+            .then(() => RG.syncAndReload())
+            .catch(e => {
+                R.sync.disabled = false;
+                R.sync.classList.remove('rg-spin');
+                setDebug('Sync failed', String((e && e.message) || e).slice(0, 26));
+            });
+    }
+    RG.syncModules = syncModules;
 
     function resetDebugPosition() {
         const p = ensurePanel();

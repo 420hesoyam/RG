@@ -13,6 +13,7 @@
         reset: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>`,
         loop: `<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>`,
         bullet: `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>`,
+        sync: `<polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>`,
         photo: `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>`,
         block: `<circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>`,
         debug: `<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>`
@@ -41,11 +42,14 @@
         .rg-switch-knob { width: 16px; height: 16px; background: #EFEEF0; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
         .rg-icobtn { -webkit-appearance: none; appearance: none; background: transparent; border: none; padding: 4px; margin: 0; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.5; border-radius: 6px; transition: opacity 0.15s; }
         .rg-icobtn:hover { opacity: 0.9; }
+        .rg-icobtn:disabled { opacity: 0.6; cursor: progress; }
+        .rg-spin { animation: rg-spin 0.9s linear infinite; }
+        @keyframes rg-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .rg-tglhdr { -webkit-appearance: none; appearance: none; width: 100%; border: none; background: transparent; font-family: inherit; color: inherit; text-align: left; cursor: pointer; }
         #rg-settings-menu .rg-switch { display: inline-block; }
         .rg-panel button:focus-visible, .rg-btn button:focus-visible, .rg-dropdown-item:focus-visible { outline: 2px solid #38BDF8; outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) {
-            .rg-panel-anim, .rg-dropdown-menu, .rg-stat-flash, .rg-switch, .rg-switch-knob, .rg-badge { transition: none !important; animation: none !important; }
+            .rg-panel-anim, .rg-dropdown-menu, .rg-stat-flash, .rg-switch, .rg-switch-knob, .rg-badge, .rg-spin { transition: none !important; animation: none !important; }
         }
 
         .rg-dropdown-menu {
