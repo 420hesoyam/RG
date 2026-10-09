@@ -1,0 +1,2 @@
+import{T as e}from"./vendor-Ci7U-XLH.js";import{u as t}from"./mui-vendor-CN79FWwT.js";import{Or as n}from"./common-Bn08fwKD.js";import{t as r}from"./components-app-Rl0fM5-3.js";var i=e(),a=t();(0,i.createRoot)(document.getElementById(`root`)).render((0,a.jsx)(r,{})),n();
+//# sourceMappingURL=index-DaI-7rND.js.map

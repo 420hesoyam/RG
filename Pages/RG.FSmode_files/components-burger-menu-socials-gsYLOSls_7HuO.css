@@ -1,0 +1,1 @@
+.menuSocials{flex-wrap:wrap;gap:32px;display:flex}.menuSocials a{justify-content:center;align-items:center;display:flex}.menuSocials a svg{width:40px;height:40px}.menuSocials a svg path{transition:all .3s}.menuSocials a:hover svg path{fill:var(--primitives-colors-neutral-100)}
