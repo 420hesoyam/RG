@@ -6,7 +6,7 @@ that handles both creators and feed filler modules.
 
 ## Install (multi-file, via @require)
 
-1. This repo is `github.com/420hesoyam/autoRG` and must stay **public** —
+1. This repo is `github.com/420hesoyam/RG` and must stay **public** —
    Tampermonkey fetches `@require` over plain HTTPS with no auth token, so a
    private repo returns 404 and every module silently fails to load
    (`RG is not defined`).
