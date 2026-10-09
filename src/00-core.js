@@ -23,22 +23,18 @@ window.RG = window.RG || {};
         bulletMin: 1.5, bulletMax: 3.5, newVideoSettleTime: 600, minSkipInterval: 800
     };
 
-    /* -- time-jump profiles (fraction of duration) ---------------------- */
-    RG.jp = {
-        1: { cd: 12000, chance: 0.003, min: 0.15, max: 0.4 },
-        2: { cd: 6000, chance: 0.02, min: 0.15, max: 0.35 }
-    };
-
+    /* -- mode config that isn't a dropdown list ---------------------------- */
     RG.mc = {
         dive: { seconds: 5 },
         tail: { window: 0.15 },
         jumpBudget: 2,
         binge: { cap: 60 },
-        pass: { skipSec: 5 }
+        pass: { skipSec: 5 },
+        rngSeek: { cd: 6000, chance: 0.02, min: 0.15, max: 0.35 }
     };
 
     /* -- mode tables (dropdown items) ----------------------------------- */
-    RG.bm = {                                     // bullet profiles
+    RG.bm = {                                     // seek profiles (bullet + jump, merged in 0.2.5)
         0: { text: 'Off', code: 'OFF' },
         1: { text: 'Burst (Highlight)', code: 'BRST' },
         2: { text: 'Climax (Peak End)', code: 'CLMX' },
@@ -50,15 +46,10 @@ window.RG = window.RG || {};
         8: { text: 'Trailer Hook (Tease & Climax)', code: 'HOOK' },
         9: { text: 'Bullet-Time (Matrix Climax)', code: 'MTRX' },
         10: { text: 'Double-Take (Echo Replay)', code: 'ECHO' },
-        11: { text: 'Trio-Hop (3x Fast Scan)', code: 'TRIO' }
-    };
-    RG.jm = {                                     // jump modes
-        0: { text: 'Off', code: 'OFF' },
-        1: { text: 'Low Chance (Rare)', code: 'LOW' },
-        2: { text: 'Regular Chance (6s CD)', code: 'REG' },
-        3: { text: 'RNG Jump Chance', code: 'RNG' },
-        4: { text: 'Dive Skip (First 5s)', code: 'DIVE' },
-        5: { text: 'Tail Preview (Late)', code: 'TAIL' }
+        11: { text: 'Trio-Hop (3x Fast Scan)', code: 'TRIO' },
+        12: { text: 'RNG Seek (Chance Jump)', code: 'RND' },
+        13: { text: 'Dive Skip (First 5s)', code: 'DIVE' },
+        14: { text: 'Tail Preview (Late)', code: 'TAIL' }
     };
     RG.lm = {                                     // loop modes
         1: { text: '1x (No Loop)', code: '1x' },
@@ -117,8 +108,6 @@ window.RG = window.RG || {};
         photoSkipMode: st.int('rg_photo_skip_mode', 1),
         bulletMode: st.int('rg_bullet_mode', 0),
         lastActiveBulletMode: st.int('rg_last_bullet_mode', 1),
-        timeJumpMode: st.int('rg_time_jump_val', 0),
-        lastActiveJumpMode: st.int('rg_last_jump_val', 1),
         loopSetting: st.int('rg_loop_setting', 1),
         lastActiveLoopSetting: st.int('rg_last_loop_setting', 2),
         speedValue: st.num('rg_speed_val', 1.0),
@@ -133,12 +122,10 @@ window.RG = window.RG || {};
         currentVideoId: null, currentVideoStartTime: 0, finishCommitmentStart: 0,
         currentLoop: 1, previousFrameTime: 0,
         runtimeLoopTarget: 1, runtimeSpeedTarget: st.num('rg_speed_val', 1.0), lastTimeJump: 0,
-        currentJumpProfile: null,
         runtimeBulletProfile: 0, bulletJumped: false, bulletTargetTime: 0, bulletStartTime: 0,
         bulletDuration: 2.5, bulletSegments: [], bulletSegIdx: 0,
         bulletSegLanded: false, bulletJumpTime: 0,
-        pendingDive: false, tailFired: false, jumpsRemaining: 0,
-        loopTimedStart: 0, baseSpeed: 1,
+        jumpsRemaining: 0, loopTimedStart: 0, baseSpeed: 1,
 
         debug: { status: 'Initializing...', time: '--' },
         stats: { total: 0, blocked: 0, bullet: 0, standard: 0, blockedBreakdown: {} }
@@ -148,11 +135,24 @@ window.RG = window.RG || {};
     const san = (map, v, d) => (map[v] ? v : d);
     S.bulletMode = san(RG.bm, S.bulletMode, 0);
     S.lastActiveBulletMode = san(RG.bm, S.lastActiveBulletMode, 1);
-    S.timeJumpMode = san(RG.jm, S.timeJumpMode, 0);
-    S.lastActiveJumpMode = san(RG.jm, S.lastActiveJumpMode, 1);
     S.loopSetting = san(RG.lm, S.loopSetting, 1);
     S.lastActiveLoopSetting = san(RG.lm, S.lastActiveLoopSetting, 2);
     S.photoSkipMode = san(RG.pm, S.photoSkipMode, 1);
+
+    /* -- one-time migration: jump modes became seek profiles in 0.2.5 ----- */
+    /* old Low/Regular/RNG chance jumps all collapse into the RNG Seek profile */
+    const JUMP_TO_SEEK = { 1: 12, 2: 12, 3: 12, 4: 13, 5: 14 };
+    if (st.get('rg_time_jump_val', '')) {
+        const seek = JUMP_TO_SEEK[st.int('rg_time_jump_val', 0)];
+        if (seek && !S.bulletMode) {
+            S.bulletMode = seek;
+            S.lastActiveBulletMode = seek;
+            st.set('rg_bullet_mode', seek);
+            st.set('rg_last_bullet_mode', seek);
+        }
+        st.set('rg_time_jump_val', '');
+        st.set('rg_last_jump_val', '');
+    }
 
     /* -- blocklist ------------------------------------------------------ */
     RG.bset = new Set(S.blockedUsers);

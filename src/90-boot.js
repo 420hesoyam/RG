@@ -99,14 +99,6 @@
         RG.setRate(v);
         RG.tryBulletJump(v);
 
-        if (S.pendingDive && !S.bulletMode && v.duration > 0) {
-            const d = Math.min(RG.mc.dive.seconds, v.duration * 0.15);
-            v.currentTime = d;
-            S.previousFrameTime = d;
-            S.pendingDive = false;
-            S.lastTimeJump = Date.now();
-        }
-
         const cdText = cd?.textContent.trim() || '';
         const finished = isFinished(v, cdText);
         S.previousFrameTime = v.currentTime;
@@ -128,8 +120,6 @@
                 RG.setDebug('Safety Lock', cdText);
                 return;
             }
-
-            RG.attemptTimeJump(v, S.timeJumpMode);
 
             if ((finished || bFin || timedSkipDue()) && S.isAutoNavEnabled) {
                 if (RG.loopShouldContinue()) {

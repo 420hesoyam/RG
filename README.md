@@ -88,10 +88,14 @@ modules and the rules for adding one.
 
 | Group | Modes |
 |---|---|
-| Bullet | Off, Burst, Climax, Mid-Peak, Quad-Hop, RNG Roulette, Slow-Mo Replay, Build-Up Ramp, Trailer Hook, Bullet-Time, Double-Take, Trio-Hop |
-| Jump | Off, Low Chance, Regular, RNG, Dive Skip, Tail Preview |
+| Bullet (seek) | Off, Burst, Climax, Mid-Peak, Quad-Hop, RNG Roulette, Slow-Mo Replay, Build-Up Ramp, Trailer Hook, Bullet-Time, Double-Take, Trio-Hop, RNG Seek, Dive Skip, Tail Preview |
 | Loops | 1x, 2x, 3x, RNG (1-4x), Binge (infinite), Timed 30s, Timed 60s, Pass & Skip |
 | Photos | Skip Photos, Instant Skip, Watch 3.5s |
+
+Jump and Bullet used to be separate dropdowns and are now one `Bullet` group:
+RNG Seek is the old chance-based jump, Dive Skip and Tail Preview are the old
+jump seeks. An existing jump setting migrates to the matching profile on the
+first load after the update.
 
 Click a grid tile to toggle it on/off (returns to your last active mode), or
 click its badge to open the full picker.

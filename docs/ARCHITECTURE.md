@@ -39,9 +39,8 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 | Key | Meaning |
 |---|---|
 | `RG.cfg` | timing tunables in ms |
-| `RG.mc` | mode config that isn't a dropdown list (dive seconds, binge cap, pass skip) |
-| `RG.jp` | time-jump profiles: cooldown, chance, min/max fraction of duration |
-| `RG.bm` / `RG.jm` / `RG.lm` / `RG.pm` | bullet / jump / loop / photo mode tables |
+| `RG.mc` | mode config that isn't a dropdown list (dive seconds, binge cap, pass skip, rng-seek chance/cd, jump budget) |
+| `RG.bm` / `RG.lm` / `RG.pm` | seek / loop / photo mode tables |
 | `RG.S` | all state — persisted settings plus runtime fields |
 | `RG.st` | `localStorage` wrapper: `get`, `set`, `num`, `int`, `bool`, `json` |
 | `RG.bset`, `RG.blk` | blocked-user Set + add/remove/toggleFiller |
@@ -53,7 +52,7 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 | `RG.ensurePanel`, `RG.panel`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
 | `RG.menu`, `RG.getOrCreateMenu`, `RG.refresh`, `RG.refreshMenu` | control center |
 | `RG.getActiveEl*`, `RG.getMediaId`, `RG.extractUser*`, `RG.getDomCached`, `RG.isImageEl`, `RG.checkFillerBlocked`, `RG.ensureUIExists` | DOM probes |
-| `RG.setRate`, `RG.applyActiveSpeed`, `RG.handleNewVideo`, `RG.commitBullet`, `RG.tryBulletJump`, `RG.bulletFinished`, `RG.attemptTimeJump`, `RG.loopShouldContinue`, `RG.applyLoopEffects`, `RG.setLoopMode`, `RG.applyBulletMode`, `RG.applyJumpMode`, `RG.setPhotoMode` | playback |
+| `RG.setRate`, `RG.applyActiveSpeed`, `RG.handleNewVideo`, `RG.commitBullet`, `RG.tryBulletJump`, `RG.maybeRngSeek`, `RG.bulletFinished`, `RG.loopShouldContinue`, `RG.applyLoopEffects`, `RG.setLoopMode`, `RG.applyBulletMode`, `RG.setPhotoMode` | playback |
 | `RG.performSkip` | navigation action |
 | `RG.start` | boot |
 
@@ -136,6 +135,25 @@ If you add a probe, cache it the same way or accept the layout cost.
 4. Re-run `node tools/bundle.mjs` and `node --check` on the new file.
 
 Adding a mode is cheaper: add an entry to the relevant table in `00-core.js`
-(`RG.bm` / `RG.jm` / `RG.lm` / `RG.pm`), then add a `case` in
-`RG.computeBulletSegments` if it's a bullet profile. The dropdowns, badges,
+(`RG.bm` / `RG.lm` / `RG.pm`), then add a `case` in
+`RG.computeBulletSegments` if it's a seek profile. The dropdowns, badges,
 sanitisation and last-active memory all read from the table.
+
+## Seeking is one group
+
+Jump and bullet were two dropdowns doing the same thing — "show part of this
+video, then move on" — so they were merged into the single `RG.bm` table
+(0.2.5). Every profile is now a segment plan; there is no separate jump state,
+setter or key.
+
+| Was | Now |
+|---|---|
+| Jump `Low Chance` / `Regular` / `RNG Jump Chance` | `12` RNG Seek — a random head start plus chance-based forward jumps (`RG.mc.rngSeek`) |
+| Jump `Dive Skip` | `13` Dive — one segment starting at `RG.mc.dive.seconds` |
+| Jump `Tail Preview` | `14` Tail — one segment at the end of the video |
+
+Old `rg_time_jump_val` / `rg_last_jump_val` are read once by the migration in
+`00-core.js` and cleared, so an existing jump setting becomes the matching seek
+profile instead of silently turning off. `RG.jm`, `RG.jp`, `RG.applyJumpMode`
+and `RG.attemptTimeJump` are gone; `RG.maybeRngSeek` runs inside
+`RG.tryBulletJump`, which the tick already calls.

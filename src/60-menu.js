@@ -211,12 +211,6 @@
                 click: toggleTo(() => S.loopSetting, v => RG.setLoopMode(v), () => S.lastActiveLoopSetting, 2)
             },
             {
-                label: 'Jumps', icon: ICO.jump, color: '#FB923C', dep: true, dropdown: true, opts: RG.jm, isAct: v => v > 0,
-                get: () => S.timeJumpMode,
-                set: v => RG.applyJumpMode(v),
-                click: toggleTo(() => S.timeJumpMode, v => RG.applyJumpMode(v), () => S.lastActiveJumpMode, 1)
-            },
-            {
                 label: 'Bullet', icon: ICO.bullet, color: '#FBBF24', dep: true, dropdown: true, opts: RG.bm, isAct: v => v > 0,
                 get: () => S.bulletMode,
                 set: v => RG.applyBulletMode(v),

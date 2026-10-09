@@ -21,6 +21,7 @@
     RG.applyActiveSpeed = applyActiveSpeed;
 
     /* -- new media lifecycle --------------------------------------------- */
+    const RNG_SEEK = 12;
     const RNG_BULLETS = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11];
 
     function handleNewVideo(id) {
@@ -60,12 +61,7 @@
         else if (ls === 18) S.runtimeLoopTarget = Math.min(3, Math.max(2, S.lastActiveLoopSetting || 2));
         else S.runtimeLoopTarget = ls;
 
-        S.pendingDive = S.timeJumpMode === 4;
-        S.tailFired = false;
         S.jumpsRemaining = RG.mc.jumpBudget;
-        S.currentJumpProfile = S.timeJumpMode === 3
-            ? RG.jp[u.rint(1, 2)]
-            : RG.jp[S.timeJumpMode];
     }
     RG.handleNewVideo = handleNewVideo;
 
@@ -134,6 +130,20 @@
                 addSeg(segs, dur * 0.82, scan * 1.6, 1.0, dur);
                 break;
             }
+            case 12: {                                       // rng seek (chance jumps on top)
+                addSeg(segs, dur * u.rnd(0.05, 0.25), dur * 0.75, 1.0, dur);
+                break;
+            }
+            case 13: {                                       // dive
+                const s = Math.min(RG.mc.dive.seconds, dur * 0.15);
+                addSeg(segs, s, dur - s, 1.0, dur);
+                break;
+            }
+            case 14: {                                       // tail
+                const s = dur * (0.8 + u.rnd(0, RG.mc.tail.window));
+                addSeg(segs, s, dur - s, 1.0, dur);
+                break;
+            }
             default: addSeg(segs, Math.max(0.2, Math.min(dur * 0.5, dur - 1.5)), S.bulletDuration, 1.0, dur);
         }
         return segs;
@@ -182,6 +192,7 @@
         if (!dur || !isFinite(dur) || dur <= 0.5) return;
 
         if (!S.bulletJumped) return commitBullet(v, S.runtimeBulletProfile);
+        maybeRngSeek(v);
         if (v.seeking) return;
 
         if (!S.bulletSegLanded) {
@@ -204,33 +215,20 @@
     RG.tryBulletJump = tryBulletJump;
     RG.bulletFinished = bulletFinished;
 
-    /* -- time jumps -------------------------------------------------------- */
-    function attemptTimeJump(v, mode) {
-        if (!S.isAutoNavEnabled || !mode || S.bulletMode) return;
-        if (!v.duration || v.duration <= 5) return;
-        const now = Date.now(), dur = v.duration;
-
-        if (mode === 5) {                                  // tail preview
-            if (S.tailFired || v.currentTime < dur * 0.55) return;
-            const t = dur * (0.8 + Math.random() * RG.mc.tail.window);
-            if (t > v.currentTime + 0.5 && t < dur - 0.5) {
-                S.tailFired = true;
-                v.currentTime = t;
-                S.lastTimeJump = now;
-            }
-            return;
-        }
-        if (S.jumpsRemaining <= 0) return;
-        const p = S.currentJumpProfile;
-        if (!p || now - S.lastTimeJump < p.cd || Math.random() >= p.chance) return;
+    /* -- RNG seek: chance-based forward jumps (the old jump modes) -------- */
+    function maybeRngSeek(v) {
+        if (S.runtimeBulletProfile !== RNG_SEEK || !S.isAutoNavEnabled) return;
+        const dur = v.duration;
+        if (!dur || dur <= 5 || v.seeking || S.jumpsRemaining <= 0) return;
+        const p = RG.mc.rngSeek, now = Date.now();
+        if (now - S.lastTimeJump < p.cd || Math.random() >= p.chance) return;
         const j = dur * u.rnd(p.min, p.max);
-        if (v.currentTime + j < dur - 1) {
-            v.currentTime += j;
-            S.jumpsRemaining--;
-            S.lastTimeJump = now;
-        }
+        if (v.currentTime + j >= dur - 1) return;
+        v.currentTime += j;
+        S.jumpsRemaining--;
+        S.lastTimeJump = now;
     }
-    RG.attemptTimeJump = attemptTimeJump;
+    RG.maybeRngSeek = maybeRngSeek;
 
     /* -- loop policy -------------------------------------------------------- */
     function loopShouldContinue() {
@@ -283,20 +281,12 @@
     }
     function applyBulletMode(v) {
         S.bulletMode = v;
+        S.runtimeBulletProfile = v;
         if (v > 0) {
             S.lastActiveBulletMode = v;
             RG.st.set('rg_last_bullet_mode', v);
         }
         RG.st.set('rg_bullet_mode', v);
-        RG.updateDebugPanel();
-    }
-    function applyJumpMode(v) {
-        S.timeJumpMode = v;
-        if (v > 0) {
-            S.lastActiveJumpMode = v;
-            RG.st.set('rg_last_jump_val', v);
-        }
-        RG.st.set('rg_time_jump_val', v);
         RG.updateDebugPanel();
     }
     function setPhotoMode(v) {
@@ -305,6 +295,5 @@
     }
     RG.setLoopMode = setLoopMode;
     RG.applyBulletMode = applyBulletMode;
-    RG.applyJumpMode = applyJumpMode;
     RG.setPhotoMode = setPhotoMode;
 })(window.RG);

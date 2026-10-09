@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RedGifs Auto Production
 // @namespace    http://tampermonkey.net/
-// @version      0.2.4
+// @version      0.2.5
 // @description  Auto navigation for redgifs.com with creative bullet modes, time jumps, loop/speed controls and a unified blocklist + feed-filler manager.
 // @author       420hesoyam
 // @license      MIT
@@ -35,5 +35,5 @@
  *     re-fetched with the script.
  *
  * Keep in sync with @version - it is what the debug panel header shows. */
-RG.version = '0.2.4';
+RG.version = '0.2.5';
 RG.start();

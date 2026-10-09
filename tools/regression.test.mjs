@@ -11,6 +11,9 @@
  * 3. Version plumbing: @version and RG.version must agree, and the last commit
  *    must have bumped @version when it touched src/, otherwise Tampermonkey
  *    silently keeps serving the installed copy and re-pasting is the only fix.
+ * 4. The merged seek group: one RG.bm table (no RG.jm/RG.jp), the old jump
+ *    setting migrates to a seek profile, and every profile builds a usable
+ *    segment plan.
  */
 
 import { readFileSync } from 'node:fs';
@@ -111,11 +114,16 @@ check('first video is driven after hydration (0.2.1 -> 0.2.2)',
 
 /* -- 2. boot cleanup must not eat live UI ------------------------------ */
 
-function loadModules(files) {
+function loadModules(files, store = {}) {
     const removed = [];
     const sandbox = {};
     sandbox.window = sandbox;
-    sandbox.localStorage = { getItem: () => null, setItem: () => { } };
+    sandbox.addEventListener = () => { };
+    sandbox.localStorage = {
+        _v: { ...store },
+        getItem(k) { return k in this._v ? this._v[k] : null; },
+        setItem(k, v) { this._v[k] = String(v); }
+    };
     sandbox.requestAnimationFrame = cb => cb();
     sandbox.document = {
         addEventListener() { },
@@ -128,7 +136,20 @@ function loadModules(files) {
     for (const f of files) {
         vm.runInContext(readFileSync(join(root, f), 'utf8'), sandbox, { filename: f });
     }
-    return { RG: sandbox.window.RG, document: sandbox.document, removed };
+    return { RG: sandbox.window.RG, document: sandbox.document, removed, sandbox };
+}
+
+/* vm intrinsics (Math/Date) are not properties of the sandbox object, so the
+ * clock and the RNG have to be replaced from inside the context. */
+function deterministic(ctx) {
+    vm.runInContext(`
+        window.__rand = () => 0;
+        window.__clock = 1700000000000;
+        window.__advance = ms => { window.__clock += ms; Date.now = () => window.__clock; };
+        Math.random = window.__rand;
+        Date.now = () => window.__clock;
+    `, ctx);
+    return ctx;
 }
 
 {
@@ -196,6 +217,96 @@ function loadModules(files) {
             srcChanged.length === 0 || cmp(after, before) > 0,
             `src files in HEAD: ${srcChanged.length}, @version ${before} -> ${after}`);
     }
+}
+
+/* -- 4. jump + bullet merged into one seek table ------------------------ */
+
+{
+    const { RG, sandbox } = loadModules(['src/00-core.js', 'src/10-dom.js', 'src/20-player.js'], {
+        'rg_bullet_mode': '0', 'rg_time_jump_val': '2'
+    });
+    const S = RG.S;
+
+    check('jump and bullet are one table now',
+        RG.jm === undefined && RG.jp === undefined && !!RG.bm[12] && !!RG.bm[13] && !!RG.bm[14],
+        `profiles: ${Object.keys(RG.bm).length}`);
+
+    check('a saved jump mode migrates to the matching seek profile',
+        S.bulletMode === 12 && sandbox.localStorage.getItem('rg_bullet_mode') === '12',
+        `rg_time_jump_val=2 -> bulletMode=${S.bulletMode}`);
+
+    check('an existing bullet mode wins over the stale jump key',
+        (() => {
+            const b = loadModules(['src/00-core.js', 'src/10-dom.js', 'src/20-player.js'], {
+                'rg_bullet_mode': '7', 'rg_time_jump_val': '4'
+            });
+            return b.RG.S.bulletMode === 7 && b.sandbox.localStorage.getItem('rg_time_jump_val') === '';
+        })(), 'rg_bullet_mode=7 + rg_time_jump_val=4 -> bulletMode 7, jump key cleared');
+
+    const dur = 20;
+    const segs = p => RG.computeBulletSegments(p, dur);
+    const covers = p => { const s = segs(p); return s.length > 0 && s.every(x => x.s >= 0 && x.t <= dur && x.t > x.s); };
+    const allProfiles = Object.keys(RG.bm).map(Number).filter(v => v !== 0 && v !== 5);
+
+    check('every seek profile yields a valid segment plan',
+        allProfiles.every(covers),
+        `profiles checked: ${allProfiles.join(',')}`);
+
+    check('dive starts at the dive point and runs to the end',
+        (() => { const s = segs(13)[0]; return Math.abs(s.s - Math.min(5, dur * 0.15)) < 0.01 && Math.abs(s.t - (dur - 0.08)) < 0.01; })(),
+        JSON.stringify(segs(13)[0]));
+
+    check('tail starts in the last 20% and runs to the end',
+        (() => { const s = segs(14)[0]; return s.s >= dur * 0.8 && Math.abs(s.t - (dur - 0.08)) < 0.01; })(),
+        JSON.stringify(segs(14)[0]));
+
+    check('rng seek only moves forward, at most jumpBudget times',
+        (() => {
+            const t = deterministic(loadModules(
+                ['src/00-core.js', 'src/10-dom.js', 'src/20-player.js'],
+                { 'rg_bullet_mode': '12' }
+            ).sandbox);
+            const s = t.RG.S;
+            s.isAutoNavEnabled = true;
+            s.runtimeBulletProfile = 12;
+            s.bulletJumped = true;
+            s.jumpsRemaining = RG.mc.jumpBudget;
+            s.lastTimeJump = 0;
+            const v = { duration: dur, currentTime: 1, seeking: false };
+
+            let jumps = 0, backwards = 0, prev = v.currentTime;
+            for (let i = 0; i < 20; i++) {
+                t.RG.maybeRngSeek(v);
+                if (v.currentTime !== prev) { jumps++; if (v.currentTime < prev) backwards++; }
+                prev = v.currentTime;
+                t.__advance(RG.mc.rngSeek.cd + 1);        // cooldown elapsed
+            }
+            t.__advance(RG.mc.rngSeek.cd + 1);
+            t.RG.maybeRngSeek(v);
+            const parked = v.currentTime === prev;         // budget exhausted -> stays put
+            t.__advance(RG.mc.rngSeek.cd + 1);
+            t.RG.maybeRngSeek(v);
+
+            return jumps === RG.mc.jumpBudget && !backwards && parked && v.currentTime === prev;
+        })(), `budget ${RG.mc.jumpBudget}, cooldown ${RG.mc.rngSeek.cd}ms, forward-only`);
+
+    check('rng seek is inert for every other profile',
+        (() => {
+            const t = deterministic(loadModules(
+                ['src/00-core.js', 'src/10-dom.js', 'src/20-player.js'],
+                { 'rg_bullet_mode': '1' }
+            ).sandbox);
+            const s = t.RG.S;
+            s.isAutoNavEnabled = true;
+            s.runtimeBulletProfile = 1;
+            s.jumpsRemaining = 9;
+            s.lastTimeJump = 0;
+            const v = { duration: dur, currentTime: 1, seeking: false };
+            t.RG.maybeRngSeek(v);
+            t.__advance(RG.mc.rngSeek.cd + 1);
+            t.RG.maybeRngSeek(v);
+            return v.currentTime === 1;
+        })(), 'profile 1 leaves currentTime untouched');
 }
 
 const failed = results.filter(r => !r.ok);
