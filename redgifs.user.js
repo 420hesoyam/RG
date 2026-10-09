@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RedGifs Auto Production
 // @namespace    http://tampermonkey.net/
-// @version      0.2.0
+// @version      0.2.1
 // @description  Auto navigation for redgifs.com with creative bullet modes, time jumps, loop/speed controls and a unified blocklist + feed-filler manager.
 // @author       420hesoyam
 // @match        https://www.redgifs.com/*
@@ -15,6 +15,8 @@
 // @require      https://raw.githubusercontent.com/420hesoyam/RG/main/src/50-panel.js
 // @require      https://raw.githubusercontent.com/420hesoyam/RG/main/src/60-menu.js
 // @require      https://raw.githubusercontent.com/420hesoyam/RG/main/src/90-boot.js
+// @updateURL    https://raw.githubusercontent.com/420hesoyam/RG/main/redgifs.user.js
+// @downloadURL  https://raw.githubusercontent.com/420hesoyam/RG/main/redgifs.user.js
 // ==/UserScript==
 
 /* Bootstrap only: the work lives in src/, loaded via @require above. */
