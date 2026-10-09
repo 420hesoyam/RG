@@ -174,7 +174,7 @@
             const curId = RG.getMediaId(el, v);
 
             if (RG.isImageEl(el)) return handlePhoto(el, curId);
-            if (!v) return;
+            if (!v) { RG.setDebug('Loading Media', '--'); return; }
             handleVideo(el, v, cd, curId);
         } catch (e) {
             RG.setDebug(`Error: ${e.message}`, '--');

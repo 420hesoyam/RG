@@ -89,6 +89,8 @@ deleting those keys from devtools.
   modules that attach to `window.RG`.
 - Syntax check all modules: `for f in src/*.js; do node --check "$f"; done`
   (Git Bash) or `node --check src\00-core.js` per file on PowerShell.
+- DOM-cache regression check: `node tools/cache-regression.test.mjs` — simulates
+  a module that hydrates after the tick first saw it (the first-video bug).
 
 ## License
 

@@ -90,9 +90,17 @@ Two caches exist because the selectors are expensive at 20Hz:
   once per second, or immediately on scroll/resize or after a skip
   (`RG.invalidateActive`).
 - `RG.getDomCached` — `<video>` and `.countdown` for one module at a time,
-  invalidated by `isConnected`.
-- `isImageEl` uses a `WeakMap` keyed by element; `extractUserCached` memoizes
-  the last (element, result) pair.
+  invalidated by `isConnected`, by a missing `<video>`, and by a 250ms
+  re-probe timer.
+- `isImageEl` uses a `WeakMap` keyed by element and only memoizes hydrated
+  modules (an element with no children stays uncached); `extractUserCached`
+  memoizes the last (element, result) pair.
+
+React hydrates a module in place, so a probe can legitimately run against an
+empty shell before `<video>`/`.countdown` exist. Any cache keyed on a module
+element must re-probe while the answer would be "not there yet", otherwise it
+latches the pre-hydration answer — that is what made the first video of a
+session undrivable until the user skipped manually.
 
 If you add a probe, cache it the same way or accept the layout cost.
 

@@ -89,19 +89,37 @@
     RG.checkFillerBlocked = checkFillerBlocked;
 
     /* -- per-module DOM cache ------------------------------------------- */
-    let _dEl = null, _dV = null, _dCd = null;
+    /* A module is rendered by React in place: the first tick after a page load
+     * (or a skip) can see an empty shell that has no <video>/.countdown yet,
+     * they land a tick or two later. A cache that only invalidates on element
+     * change latched that missing video forever, so the first video of a
+     * session was never driven. Re-probe on a short timer and whenever the
+     * video is absent: the cost is two querySelectors every 250ms. */
+    let _dEl = null, _dV = null, _dCd = null, _dTime = 0;
+    const DOM_REPROBE_MS = 250;
+
     function getDomCached(el) {
-        if (el !== _dEl || (_dV && !_dV.isConnected) || (_dCd && !document.contains(_dCd))) {
+        if (!el) return { v: null, cd: null };
+        const now = Date.now();
+        if (el !== _dEl || !_dV || !_dV.isConnected ||
+            (_dCd && !document.contains(_dCd)) || now - _dTime > DOM_REPROBE_MS) {
             _dEl = el;
             _dV = el.querySelector('video');
             _dCd = el.querySelector('.countdown');
+            _dTime = now;
         }
         return { v: _dV, cd: _dCd };
     }
 
+    /* Same rule as above: memoize only hydrated modules. An empty shell has to
+     * stay re-probed, otherwise a photo module classified before React filled
+     * it would never be recognised as one. */
     const _imgCache = new WeakMap();
     function isImageEl(el) {
-        if (_imgCache.has(el)) return _imgCache.get(el);
+        if (!el) return false;
+        const cached = _imgCache.get(el);
+        if (cached !== undefined) return cached;
+        if (el.childElementCount === 0) return false;
         const r = el.classList.contains('GifPreview_isImage') || !!el.querySelector('.ImageGif');
         _imgCache.set(el, r);
         return r;
