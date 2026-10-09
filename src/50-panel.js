@@ -1,24 +1,29 @@
 /* ==========================================================================
  * RG · 50 PANEL
  * The floating AUTONAV debug/status panel: build, bind, update.
+ * Built on first use, rebuilt if it ever leaves the document.
  * ========================================================================== */
 (function (RG) {
     'use strict';
-    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS, $ = RG.$;
+    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS;
 
     const LBL = "color:#BAB9C0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; display:block; margin-bottom:2px;";
 
+    let panel = null, R = null;
+
     /* -- build ------------------------------------------------------------- */
     function build() {
-        const panel = u.tag('div', 'rg-panel rg-panel-anim');
-        panel.id = 'rg-debug-panel';
-        u.css(panel, { top: S.panelPos.top, left: S.panelPos.left, width: '275px', fontSize: '11px', display: S.showDebug ? 'block' : 'none' });
-        if (S.showDebug) panel.classList.add('rg-visible');
-        panel.innerHTML = `
+        const p = u.tag('div', 'rg-panel rg-panel-anim');
+        p.id = 'rg-debug-panel';
+        p.dataset.rgRun = RG.runId;
+        u.css(p, { top: S.panelPos.top, left: S.panelPos.left, width: '275px', fontSize: '11px', display: S.showDebug ? 'block' : 'none' });
+        if (S.showDebug) p.classList.add('rg-visible');
+        p.innerHTML = `
             <div id="rg-debug-hdr" style="padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; cursor:grab; user-select:none; background:rgba(0,0,0,0.22);">
                 <div style="display:flex; gap:6px; align-items:center;">
                     ${ICO.grip}<div id="rg-dot" aria-hidden="true" style="width:7px; height:7px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; transition:0.2s;"></div>
                     <span style="font-weight:700; font-size:11px; letter-spacing:0.6px;">AUTONAV</span>
+                    <span style="font-family:monospace; font-size:9px; color:#7A7985; letter-spacing:0;">v${RG.version}</span>
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <button type="button" id="rg-rst-btn" class="rg-icobtn" aria-label="Reset panel position" title="Reset position">${ICO.reset}</button>
@@ -47,38 +52,54 @@
                             <div id="rg-stat-fil" style="font-family:monospace; font-size:11px; font-weight:700; color:#FF2E56;">0</div>
                         </div>
                     </div>
-                    <button type="button" id="rg-blk-hdr" class="rg-tglhdr" aria-expanded="false" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; opacity:0.85; padding:2px 0; box-sizing:border-box;"><span style="font-size:9px; font-weight:700; color:#BAB9C0; text-transform:uppercase;">Blocked Breakdown</span><span id="rg-blk-chv" aria-hidden="true" style="font-size:8px; opacity:0.5; transition:0.2s;">▼</span></button>
+                    <button type="button" id="rg-blk-hdr" class="rg-tglhdr" aria-expanded="false" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; opacity:0.85; padding:2px 0; box-sizing:border-box;"><span style="font-size:9px; color:#BAB9C0; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Blocked Breakdown</span><span id="rg-blk-chv" aria-hidden="true" style="font-size:8px; opacity:0.5; transition:0.2s;">▼</span></button>
                     <div id="rg-fil-lst" style="display:none; flex-direction:column; gap:4px; max-height:100px; overflow-y:auto; padding-top:8px;"></div>
                 </div>
             </div>
         `;
-        document.body.appendChild(panel);
-        return panel;
+        document.body.appendChild(p);
+        return p;
     }
 
     /* -- refs -------------------------------------------------------------- */
-    const panel = build();
-    const R = {
-        hdr: $('rg-debug-hdr'), dot: $('rg-dot'), status: $('rg-status'), id: $('rg-id'),
-        spd: $('rg-spd'), tmr: $('rg-tmr'), loop: $('rg-loop'),
-        statTot: $('rg-stat-tot'), statStd: $('rg-stat-std'), statBul: $('rg-stat-bul'),
-        statFil: $('rg-stat-fil'), statCnt: $('rg-stats-cnt'), statChv: $('rg-stat-chv'),
-        statsHdr: $('rg-stats-hdr'), blkHdr: $('rg-blk-hdr'), blkChv: $('rg-blk-chv'), filLst: $('rg-fil-lst')
-    };
+    function refs(p) {
+        return {
+            hdr: p.querySelector('#rg-debug-hdr'), dot: p.querySelector('#rg-dot'),
+            status: p.querySelector('#rg-status'), id: p.querySelector('#rg-id'),
+            spd: p.querySelector('#rg-spd'), tmr: p.querySelector('#rg-tmr'), loop: p.querySelector('#rg-loop'),
+            rst: p.querySelector('#rg-rst-btn'), cls: p.querySelector('#rg-cls-btn'),
+            statTot: p.querySelector('#rg-stat-tot'), statStd: p.querySelector('#rg-stat-std'),
+            statBul: p.querySelector('#rg-stat-bul'), statFil: p.querySelector('#rg-stat-fil'),
+            statCnt: p.querySelector('#rg-stats-cnt'), statChv: p.querySelector('#rg-stat-chv'),
+            statsHdr: p.querySelector('#rg-stats-hdr'), blkHdr: p.querySelector('#rg-blk-hdr'),
+            blkChv: p.querySelector('#rg-blk-chv'), filLst: p.querySelector('#rg-fil-lst')
+        };
+    }
 
-    function resetDebugPosition() {
-        panel.style.top = '70px';
-        panel.style.left = '16px';
-        RG.st.set('rg_panel_pos', '{"top":"70px","left":"16px"}');
-        ui.clampToViewport(panel, 'rg_panel_pos');
+    function ensurePanel() {
+        if (panel && document.contains(panel)) return panel;
+        panel = build();
+        R = refs(panel);
+        bind();
+        return panel;
     }
 
     /* -- bindings ----------------------------------------------------------- */
-    ui.drag(R.hdr, panel, { ignore: '#rg-cls-btn, #rg-rst-btn', onEnd: ui.savePos('rg_panel_pos')(panel) });
-    u.click($('rg-rst-btn'), resetDebugPosition);
-    u.click($('rg-cls-btn'), () => { S.showDebug = false; RG.st.set('rg_debug_enabled', 'false'); updateDebugPanel(); });
-    u.click(R.statsHdr, () => { S.isStatsExpanded = !S.isStatsExpanded; RG.st.set('rg_stats_expanded', S.isStatsExpanded); updateDebugPanel(); });
-    u.click(R.blkHdr, () => { S.isBlockedExpanded = !S.isBlockedExpanded; RG.st.set('rg_blocked_expanded', S.isBlockedExpanded); updateDebugPanel(); });
+    function bind() {
+        ui.drag(R.hdr, panel, { ignore: '#rg-cls-btn, #rg-rst-btn', onEnd: ui.savePos('rg_panel_pos')(panel) });
+        u.click(R.rst, resetDebugPosition);
+        u.click(R.cls, () => { S.showDebug = false; RG.st.set('rg_debug_enabled', 'false'); updateDebugPanel(); });
+        u.click(R.statsHdr, () => { S.isStatsExpanded = !S.isStatsExpanded; RG.st.set('rg_stats_expanded', S.isStatsExpanded); updateDebugPanel(); });
+        u.click(R.blkHdr, () => { S.isBlockedExpanded = !S.isBlockedExpanded; RG.st.set('rg_blocked_expanded', S.isBlockedExpanded); updateDebugPanel(); });
+    }
+
+    function resetDebugPosition() {
+        const p = ensurePanel();
+        p.style.top = '70px';
+        p.style.left = '16px';
+        RG.st.set('rg_panel_pos', '{"top":"70px","left":"16px"}');
+        ui.clampToViewport(p, 'rg_panel_pos');
+    }
 
     /* -- render ------------------------------------------------------------- */
     const dotColor = () => S.isAutoNavEnabled ? '#10B981' : '#FF2E56';
@@ -102,7 +123,7 @@
         const keys = Object.keys(bbd);
         R.filLst.innerHTML = keys.length
             ? keys.sort((a, b) => bbd[b] - bbd[a]).map(k => `
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.03);">
+                <div style="display:flex; justify-content:space-between; font-size:10px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.03);">
                     <span style="color:#BAB9C0; overflow:hidden; text-overflow:ellipsis; max-width:170px; white-space:nowrap;">${k.startsWith('[') ? k : '@' + k}</span>
                     <span style="background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; font-family:monospace;">${bbd[k]}</span>
                 </div>`).join('')
@@ -110,7 +131,8 @@
     }
 
     function updateDebugPanel() {
-        ui.show(panel, S.showDebug);
+        const p = ensurePanel();
+        ui.show(p, S.showDebug);
         if (!S.showDebug) return;
 
         const c = dotColor();
@@ -160,5 +182,7 @@
     RG.updateDebugPanel = updateDebugPanel;
     RG.setDebug = setDebug;
     RG.resetDebugPosition = resetDebugPosition;
-    RG.panel = panel;
+    RG.ensurePanel = ensurePanel;
+    /* `RG.panel` is a getter so every reader gets a live, attached panel. */
+    Object.defineProperty(RG, 'panel', { get: ensurePanel, configurable: true });
 })(window.RG);

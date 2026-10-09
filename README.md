@@ -76,6 +76,12 @@ click its badge to open the full picker.
   live-cam modules and OnlyFans promo modules. A `Block` tile is the master
   off-switch for all skipping.
 
+- The debug panel (`AUTONAV`, top-left) shows live status, speed, media id, loop
+  state and skip statistics. Its header carries the script version.
+- `@version` in `redgifs.user.js` is the single source of truth: the entry file
+  passes it to `RG.version` for the panel, and `tools/bundle.mjs` injects the
+  same value into the local bundle.
+
 ## Settings storage
 
 Everything persists in `localStorage` under `rg_*` keys (`rg_bullet_mode`,
@@ -89,8 +95,9 @@ deleting those keys from devtools.
   modules that attach to `window.RG`.
 - Syntax check all modules: `for f in src/*.js; do node --check "$f"; done`
   (Git Bash) or `node --check src\00-core.js` per file on PowerShell.
-- DOM-cache regression check: `node tools/cache-regression.test.mjs` — simulates
-  a module that hydrates after the tick first saw it (the first-video bug).
+- DOM-cache and panel regression check: `node tools/regression.test.mjs` — runs
+  the real modules in a stub DOM (no dependencies) and covers the first-video
+  bug plus the boot cleanup that used to detach the debug panel.
 
 ## License
 

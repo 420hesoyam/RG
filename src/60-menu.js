@@ -393,6 +393,7 @@
         updaters = [];
         menu = u.tag('div', 'rg-panel rg-panel-anim');
         menu.id = 'rg-settings-menu';
+        menu.dataset.rgRun = RG.runId;
         u.css(menu, { width: '285px', overflow: 'hidden', padding: '0', zIndex: '2147483647', display: 'none', borderRadius: '12px' });
 
         const saved = RG.st.json('rg_menu_pos', 'null');

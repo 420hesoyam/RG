@@ -7,6 +7,15 @@ window.RG = window.RG || {};
 (function (RG) {
     'use strict';
 
+    /* -- identity -------------------------------------------------------- */
+    /* @version lives in the entry file; redgifs.user.js sets it next to
+     * RG.start() and tools/bundle.mjs injects it from the same metadata block.
+     * 'dev' only shows up when the modules are loaded without an entry file. */
+    RG.version = RG.version || 'dev';
+    /* Tags every element this run owns, so boot-time cleanup can drop the
+     * leftovers of a previous injection without eating our own UI. */
+    RG.runId = 'r' + Math.random().toString(36).slice(2, 9);
+
     /* -- tunables (ms unless noted) ------------------------------------- */
     RG.cfg = {
         minWatchTime: 1000, photoWatchTime: 3500, bufferTime: 200,

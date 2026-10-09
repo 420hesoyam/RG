@@ -143,6 +143,7 @@
         activeDiv.__rg_uiDone = true;
 
         const li = u.tag('li', 'sideBarItem autoNextSettings');
+        li.dataset.rgRun = RG.runId;
         btn = u.tag('button');
         btn.type = 'button';
         btn.setAttribute('aria-label', 'Open control center');

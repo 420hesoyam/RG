@@ -18,6 +18,12 @@ const outFile = resolve(root, process.argv[2] || 'dist/redgifs.local.user.js');
 const files = (await readdir(srcDir)).filter(f => f.endsWith('.js')).sort();
 if (!files.length) throw new Error('no modules found in src/');
 
+/* src/ has no metadata block, so take @version from the entry file and hand it
+ * to RG.version the same way the @require path does. One source of truth. */
+const entryFile = join(root, 'redgifs.user.js');
+const entrySrc = await readFile(entryFile, 'utf8');
+const version = (entrySrc.match(/@version\s+(\S+)/) || [, 'dev'])[1];
+
 const header = `// RedGifs Auto Production - LOCAL BUNDLE (generated, do not edit)
 // built from ${files.length} modules: ${files.join(', ')}
 `;
@@ -26,9 +32,9 @@ const body = (await Promise.all(files.map(async f => {
     return `/* ===== ${f} ===== */\n${code}`;
 }))).join('\n');
 
-const entryMeta = `/* Bootstrap */\nRG.start();\n`;
+const entryMeta = `/* Bootstrap */\nRG.version = ${JSON.stringify(version)};\nRG.start();\n`;
 
 await mkdir(dirname(outFile), { recursive: true });
 await writeFile(outFile, header + body + '\n' + entryMeta, 'utf8');
 
-console.log(`built ${files.length} modules -> ${outFile}`);
+console.log(`built ${files.length} modules -> ${outFile} (v${version})`);

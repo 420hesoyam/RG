@@ -47,8 +47,10 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 | `RG.bset`, `RG.blk` | blocked-user Set + add/remove/toggleFiller |
 | `RG.u` | `debounce`, `clamp`, `rnd`, `rint`, `tag`, `on`, `click`, `css` |
 | `RG.$` | `getElementById` |
+| `RG.version` | script version, handed over by the entry file (mirrors `@version`) |
+| `RG.runId` | per-run token; every element this run owns carries it as `data-rg-run` |
 | `RG.ui` | icons, stylesheet, `show`, `flashUpdate`, `drag`, `clampToViewport`, `showDropdown`, `closeDropdown` |
-| `RG.panel`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
+| `RG.ensurePanel`, `RG.panel`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
 | `RG.menu`, `RG.getOrCreateMenu`, `RG.refresh`, `RG.refreshMenu` | control center |
 | `RG.getActiveEl*`, `RG.getMediaId`, `RG.extractUser*`, `RG.getDomCached`, `RG.isImageEl`, `RG.checkFillerBlocked`, `RG.ensureUIExists` | DOM probes |
 | `RG.setRate`, `RG.applyActiveSpeed`, `RG.handleNewVideo`, `RG.commitBullet`, `RG.tryBulletJump`, `RG.bulletFinished`, `RG.attemptTimeJump`, `RG.loopShouldContinue`, `RG.applyLoopEffects`, `RG.setLoopMode`, `RG.applyBulletMode`, `RG.applyJumpMode`, `RG.setPhotoMode` | playback |
@@ -107,6 +109,13 @@ If you add a probe, cache it the same way or accept the layout cost.
 ## UI conventions
 
 - All UI is prefixed `rg-` and scoped to a panel element; no global CSS.
+- The panel is built on first use (`RG.ensurePanel`) and rebuilt if it leaves the
+  document, so nothing may cache the node — `RG.panel` is a getter for that
+  reason. `RG.getOrCreateMenu` follows the same rule for the control center.
+- Every element matched by the boot-time cleanup in `ui.installStyles` carries
+  `data-rg-run = RG.runId`. The cleanup only removes untagged leftovers from a
+  previous injection; deleting tagged nodes detaches the live panel and the
+  panel silently stops updating.
 - Both panels share `rg-panel` / `rg-panel-anim` / `rg-card` / `rg-row` /
   `rg-badge` / `rg-switch` / `rg-icobtn` from the single stylesheet in
   `40-ui.js`.

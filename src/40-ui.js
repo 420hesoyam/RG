@@ -101,10 +101,13 @@
     function installStyles() {
         const s = document.createElement('style');
         s.id = 'rg-styles';
+        s.dataset.rgRun = RG.runId;
         s.textContent = CSS;
         document.head.appendChild(s);
+        // Drop leftovers from a previous injection only: this run's own panel,
+        // menu and sidebar button are tagged and must survive the cleanup.
         document.querySelectorAll('.autoNextSettings, #rg-debug-panel, #rg-settings-menu, .rg-dropdown-menu')
-            .forEach(el => el.remove());
+            .forEach(el => { if (el.dataset.rgRun !== RG.runId) el.remove(); });
     }
 
     /* -- show / hide ------------------------------------------------------ */
@@ -183,6 +186,7 @@
     function showDropdown(anchor, options, curVal, onSelect, accent = '#38BDF8', title = '') {
         closeDropdown();
         const drop = u.tag('div', 'rg-dropdown-menu');
+        drop.dataset.rgRun = RG.runId;
 
         if (title) {
             const cur = options[curVal];
