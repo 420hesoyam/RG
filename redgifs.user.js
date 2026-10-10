@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RedGifs Auto Production
 // @namespace    http://tampermonkey.net/
-// @version      0.2.6
+// @version      0.3.1
 // @description  Auto navigation for redgifs.com with creative bullet modes, time jumps, loop/speed controls and a unified blocklist + feed-filler manager.
 // @author       420hesoyam
 // @license      MIT
@@ -36,7 +36,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.2.6';             // keep in sync with @version
+    const VERSION = '0.3.1';             // keep in sync with @version
     const REPO = 'https://raw.githubusercontent.com/420hesoyam/RG/main/';
     const BASE = REPO + 'src/';
     const MODULES = [
