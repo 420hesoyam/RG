@@ -5,9 +5,7 @@
  * ========================================================================== */
 (function (RG) {
     'use strict';
-    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS;
-
-    const LBL = "color:#BAB9C0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; display:block; margin-bottom:2px;";
+    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS, T = RG.TONES;
 
     let panel = null, R = null;
 
@@ -16,45 +14,60 @@
         const p = u.tag('div', 'rg-panel rg-panel-anim');
         p.id = 'rg-debug-panel';
         p.dataset.rgRun = RG.runId;
-        u.css(p, { top: S.panelPos.top, left: S.panelPos.left, width: '275px', fontSize: '11px', display: S.showDebug ? 'block' : 'none' });
+        u.css(p, { top: S.panelPos.top, left: S.panelPos.left, width: '288px', display: S.showDebug ? 'block' : 'none' });
         if (S.showDebug) p.classList.add('rg-visible');
         p.innerHTML = `
-            <div id="rg-debug-hdr" style="padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; cursor:grab; user-select:none; background:rgba(0,0,0,0.22);">
-                <div style="display:flex; gap:6px; align-items:center;">
-                    ${ICO.grip}<div id="rg-dot" aria-hidden="true" style="width:7px; height:7px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; transition:0.2s;"></div>
-                    <span style="font-weight:700; font-size:11px; letter-spacing:0.6px;">AUTONAV</span>
-                    <span style="font-family:monospace; font-size:9px; color:#7A7985; letter-spacing:0;">v${RG.version}</span>
+            <div id="rg-debug-hdr" class="rg-hdr">
+                <div class="rg-hdr-l">
+                    ${ICO.grip}<div id="rg-dot" class="rg-dot" aria-hidden="true"></div>
+                    <span class="rg-hdr-title">AUTONAV</span>
+                    <span class="rg-hdr-ver">v${RG.version}</span>
                 </div>
-                <div style="display:flex; gap:6px; align-items:center;">
+                <div class="rg-hdr-r">
                     <button type="button" id="rg-sync-btn" class="rg-icobtn" aria-label="Sync modules and reload" title="Sync modules + reload">${ICO.sync}</button>
                     <button type="button" id="rg-rst-btn" class="rg-icobtn" aria-label="Reset panel position" title="Reset position">${ICO.reset}</button>
                     <button type="button" id="rg-cls-btn" class="rg-icobtn" aria-label="Close debug panel" title="Close">✕</button>
                 </div>
             </div>
             <div id="rg-debug-body">
-                <div style="padding:10px 14px; display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; background:rgba(255,255,255,0.015);">
-                    <div><span style="${LBL}">Status</span><span id="rg-status" style="font-weight:600;">--</span></div>
-                    <div style="text-align:right;"><span style="${LBL}">Speed</span><span id="rg-spd" style="font-family:monospace; color:#FF2E56; font-weight:600;">1.0x</span></div>
-                    <div><span style="${LBL}">Media ID</span><span id="rg-id" style="font-family:monospace; font-size:10px; color:#38BDF8; font-weight:600; max-width:115px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;">--</span></div>
-                    <div style="text-align:right;"><span style="${LBL}">Loop &amp; Bullet</span><span id="rg-loop" style="font-family:monospace; font-size:10px; font-weight:600; color:#BAB9C0;">1/1</span> <span id="rg-tmr" style="font-family:monospace; font-size:10px;">--</span></div>
+                <div class="rg-body" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 12px;">
+                    <div>
+                        <span class="rg-lbl">Status</span>
+                        <span id="rg-status" class="rg-val">--</span>
+                    </div>
+                    <div class="rg-val-right">
+                        <span class="rg-lbl">Speed</span>
+                        <span id="rg-spd" class="rg-val rg-val-mono" style="color:${T.brand};">1.0x</span>
+                    </div>
+                    <div>
+                        <span class="rg-lbl">Media ID</span>
+                        <span id="rg-id" class="rg-val rg-val-mono" style="color:${T.info}; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">--</span>
+                    </div>
+                    <div class="rg-val-right">
+                        <span class="rg-lbl">Loop &amp; Bullet</span>
+                        <span id="rg-loop" class="rg-val rg-val-mono" style="color:${T.text_muted};">1/1</span> <span id="rg-tmr" class="rg-val rg-val-mono">--</span>
+                    </div>
                 </div>
-                <button type="button" id="rg-stats-hdr" class="rg-tglhdr rg-stats-hdr" aria-expanded="false" style="padding:9px 14px; border-top:1px solid rgba(255,255,255,0.08); cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.12);">
-                    <span style="font-size:10px; font-weight:700; color:#BAB9C0; text-transform:uppercase; letter-spacing:0.5px;">Statistics</span>
-                    <span style="display:flex; align-items:center; gap:8px;"><span id="rg-stat-tot" style="font-family:monospace; font-weight:700;">0</span><span id="rg-stat-chv" aria-hidden="true" style="font-size:8px; opacity:0.5; transition:0.2s;">▼</span></span>
+                <button type="button" id="rg-stats-hdr" class="rg-tglhdr rg-stats-hdr" aria-expanded="false" style="border-top:1px solid var(--rg-line); background:#191919;">
+                    <span class="rg-sec">Statistics</span>
+                    <span style="display:flex; align-items:center; gap:8px;"><span id="rg-stat-tot" class="rg-val-mono" style="color:${T.text_muted};">0</span><span id="rg-stat-chv" class="rg-chev" aria-hidden="true">▼</span></span>
                 </button>
-                <div id="rg-stats-cnt" style="display:none; padding:10px 14px; background:rgba(0,0,0,0.2);">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
-                        <div style="background:rgba(255,255,255,0.03); padding:7px 9px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
-                            <div style="font-size:9px; color:#BAB9C0; font-weight:600;">STD / BULLET</div>
-                            <div style="font-family:monospace; font-size:11px; font-weight:700;"><span id="rg-stat-std" style="color:#10B981;">0</span><span style="opacity:0.2;">/</span><span id="rg-stat-bul" style="color:#FBBF24;">0</span></div>
+                <div id="rg-stats-cnt" class="rg-body" style="display:none; padding-top:0;">
+                    <div class="rg-stats" style="margin-bottom:10px;">
+                        <div class="rg-stat">
+                            <div class="rg-stat-k">STD / BULLET</div>
+                            <div class="rg-stat-v"><span id="rg-stat-std" style="color:${T.success};">0</span><span style="opacity:0.25;">/</span><span id="rg-stat-bul" style="color:${T.warning};">0</span></div>
                         </div>
-                        <div style="background:rgba(255,255,255,0.03); padding:7px 9px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
-                            <div style="font-size:9px; color:#BAB9C0; font-weight:600;">BLOCKED</div>
-                            <div id="rg-stat-fil" style="font-family:monospace; font-size:11px; font-weight:700; color:#FF2E56;">0</div>
+                        <div class="rg-stat">
+                            <div class="rg-stat-k">Blocked</div>
+                            <div id="rg-stat-fil" class="rg-stat-v" style="color:${T.error};">0</div>
                         </div>
                     </div>
-                    <button type="button" id="rg-blk-hdr" class="rg-tglhdr" aria-expanded="false" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; opacity:0.85; padding:2px 0; box-sizing:border-box;"><span style="font-size:9px; color:#BAB9C0; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Blocked Breakdown</span><span id="rg-blk-chv" aria-hidden="true" style="font-size:8px; opacity:0.5; transition:0.2s;">▼</span></button>
-                    <div id="rg-fil-lst" style="display:none; flex-direction:column; gap:4px; max-height:100px; overflow-y:auto; padding-top:8px;"></div>
+                    <button type="button" id="rg-blk-hdr" class="rg-tglhdr" aria-expanded="false" style="padding:0 0 2px;">
+                        <span class="rg-sec">Blocked Breakdown</span>
+                        <span id="rg-blk-chv" class="rg-chev" aria-hidden="true">▼</span>
+                    </button>
+                    <div id="rg-fil-lst" class="rg-list rg-scroll" style="display:none; padding-top:8px;"></div>
                 </div>
             </div>
         `;
@@ -123,15 +136,15 @@
     }
 
     /* -- render ------------------------------------------------------------- */
-    const dotColor = () => S.isAutoNavEnabled ? '#10B981' : '#FF2E56';
+    const dotColor = () => S.isAutoNavEnabled ? T.success : T.brand;
     const statusColor = t =>
-        t.includes('SKIP') ? '#FF2E56' : (t.includes('Watching') || t.includes('[') ? '#10B981' : '#EFEEF0');
+        t.includes('SKIP') ? T.error : (t.includes('Watching') || t.includes('[') ? T.success : T.text);
 
     function loopLabel() {
         const ls = S.loopSetting;
         if (ls === 11) return `${S.currentLoop}/∞`;
         if (ls >= 12) return `${RG.lm[ls].code} ${S.currentLoop}/${S.runtimeLoopTarget}`;
-        if (ls === 5) return `${S.currentLoop}/${S.runtimeLoopTarget} <span style="font-size:8px">RNG</span>`;
+        if (ls === 5) return `${S.currentLoop}/${S.runtimeLoopTarget} <span class="rg-mini">RNG</span>`;
         return `${S.currentLoop}/${ls}`;
     }
 
@@ -144,11 +157,11 @@
         const keys = Object.keys(bbd);
         R.filLst.innerHTML = keys.length
             ? keys.sort((a, b) => bbd[b] - bbd[a]).map(k => `
-                <div style="display:flex; justify-content:space-between; font-size:10px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.03);">
-                    <span style="color:#BAB9C0; overflow:hidden; text-overflow:ellipsis; max-width:170px; white-space:nowrap;">${k.startsWith('[') ? k : '@' + k}</span>
-                    <span style="background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; font-family:monospace;">${bbd[k]}</span>
+                <div class="rg-list-row">
+                    <span class="rg-list-k">${k.startsWith('[') ? k : '@' + k}</span>
+                    <span class="rg-list-v">${bbd[k]}</span>
                 </div>`).join('')
-            : '<span style="font-style:italic; color:#7A7985; font-size:10px;">No blocked items skipped yet.</span>';
+            : '<span class="rg-tiny-i">No blocked items skipped yet.</span>';
     }
 
     function updateDebugPanel() {
@@ -158,7 +171,7 @@
 
         const c = dotColor();
         R.dot.style.background = c;
-        R.dot.style.boxShadow = `0 0 7px ${c}`;
+        R.dot.style.boxShadow = `0 0 8px ${c}`;
 
         R.status.textContent = S.debug.status;
         R.status.style.color = statusColor(S.debug.status);
@@ -167,11 +180,11 @@
         if (id.includes('redgifs.com')) id = id.split('/').pop();
         R.id.textContent = id;
 
-        R.spd.innerHTML = `${S.runtimeSpeedTarget.toFixed(2)}x ${S.speedRng && S.isAutoNavEnabled ? '<span style="font-size:8px; opacity:0.7">RNG</span>' : ''}`;
+        R.spd.innerHTML = `${S.runtimeSpeedTarget.toFixed(2)}x ${S.speedRng && S.isAutoNavEnabled ? `<span class="rg-mini" style="opacity:0.7">RNG</span>` : ''}`;
         R.tmr.textContent = S.debug.time;
 
         const bCode = RG.bm[S.runtimeBulletProfile]?.code || 'ON';
-        R.loop.innerHTML = `${loopLabel()} ${S.bulletMode > 0 ? `<span style="font-size:8px; color:#FBBF24;">[${bCode}]</span>` : ''}`;
+        R.loop.innerHTML = `${loopLabel()} ${S.bulletMode > 0 ? `<span class="rg-mini" style="color:${T.warning};">[${bCode}]</span>` : ''}`;
 
         ui.flashUpdate(R.statTot, S.stats.total);
         R.statCnt.style.display = S.isStatsExpanded ? 'block' : 'none';

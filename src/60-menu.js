@@ -5,7 +5,7 @@
  * ========================================================================== */
 (function (RG) {
     'use strict';
-    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS, $ = RG.$;
+    const S = RG.S, ui = RG.ui, u = RG.u, ICO = RG.ICONS, T = RG.TONES, $ = RG.$;
 
     const FILLER_CHIPS = [
         ['rg-chip-niches', 'niches', 'Niches / Tags'],
@@ -72,16 +72,15 @@
     function masterToggleCard() {
         const card = u.tag('div', 'rg-card');
         const row = u.tag('button', 'rg-row',
-            `<span style="font-weight:700; font-size:12px; pointer-events:none;">Auto Skip (Master)</span>` +
-            `<span class="rg-switch" aria-hidden="true" style="pointer-events:none;"><span class="rg-switch-knob"></span></span>`);
+            `<span class="rg-row-title">Auto Skip (Master)</span>` +
+            `<span class="rg-switch" aria-hidden="true"><span class="rg-switch-knob"></span></span>`);
         row.type = 'button';
         row.setAttribute('role', 'switch');
         row.setAttribute('aria-checked', String(S.isAutoNavEnabled));
 
-        const sw = row.querySelector('.rg-switch'), knob = row.querySelector('.rg-switch-knob');
+        const sw = row.querySelector('.rg-switch');
         updaters.push(() => {
-            sw.style.background = S.isAutoNavEnabled ? '#10B981' : '#FF2E56';
-            knob.style.left = S.isAutoNavEnabled ? '16px' : '2px';
+            sw.classList.toggle('rg-on', S.isAutoNavEnabled);
             row.setAttribute('aria-checked', String(S.isAutoNavEnabled));
         });
         u.on(row, 'click', (e) => {
@@ -99,15 +98,15 @@
     function speedCard() {
         const card = u.tag('div', 'rg-card');
         const box = u.tag('div');
-        box.style.cssText = 'padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; gap:8px;';
+        box.style.cssText = 'padding:14px 16px 16px; display:flex; flex-direction:column; gap:8px;';
         box.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:600; font-size:11px;">Playback Speed <span id="rg-m-spd" style="color:#FF2E56; font-family:monospace; font-weight:700;">${S.speedValue}x</span></span>
-                <button type="button" id="rg-rng-btn" aria-label="Toggle random playback speed" aria-pressed="false" style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.06); padding:3px 7px; border-radius:4px; cursor:pointer; font-size:9px; font-weight:700; color:#BAB9C0; border:1px solid rgba(255,255,255,0.08); -webkit-appearance:none; appearance:none; font-family:inherit;">
-                    RNG <span id="rg-rng-dot" style="width:6px; height:6px; border-radius:50%; background:#555;"></span>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span class="rg-row-title">Playback Speed <span id="rg-m-spd" class="rg-val-mono" style="margin-left:6px; color:${T.brand};">${S.speedValue}x</span></span>
+                <button type="button" id="rg-rng-btn" class="rg-chip" aria-label="Toggle random playback speed" aria-pressed="false" style="height:26px; padding:0 10px;">
+                    RNG <span id="rg-rng-dot" class="rg-chip-dot"></span>
                 </button>
             </div>
-            <input type="range" min="0.5" max="3.0" step="0.1" value="${S.speedValue}" aria-label="Playback speed">
+            <input type="range" class="rg-range" min="0.5" max="3.0" step="0.1" value="${S.speedValue}" aria-label="Playback speed">
         `;
 
         const slider = box.querySelector('input');
@@ -142,11 +141,10 @@
             box.style.opacity = off ? '0.4' : '1';
             box.style.pointerEvents = off ? 'none' : 'auto';
             slider.disabled = rng;
-            slider.style.opacity = rng ? '0.3' : '1';
             slider.value = String(S.speedValue);
             spdDisp.textContent = rng ? 'RNG' : `${S.speedValue}x`;
-            rngBtn.style.color = S.speedRng ? '#FF2E56' : '#BAB9C0';
-            rngDot.style.background = S.speedRng ? '#FF2E56' : '#555';
+            rngBtn.classList.toggle('rg-chip-act', !!S.speedRng);
+            rngDot.style.background = S.speedRng ? '#090909' : '';
             rngBtn.setAttribute('aria-pressed', String(!!S.speedRng));
         });
 
@@ -157,18 +155,19 @@
 
     function automationGrid() {
         const wrap = u.tag('div');
-        wrap.innerHTML = `<div style="font-size:9px; font-weight:700; color:#BAB9C0; letter-spacing:0.6px; padding:10px 14px 0;">AUTOMATION</div>`;
-        const grid = u.tag('div');
-        grid.style.cssText = 'display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:10px 12px 12px;';
+        wrap.appendChild(u.tag('div', 'rg-sec', 'Automation'));
+        wrap.lastChild.style.cssText = 'padding:4px 16px 10px;';
+        const grid = u.tag('div', 'rg-grid');
 
         const cell = (cfg) => {
             const box = u.tag('div', 'rg-btn');
+            box.style.setProperty('--rg-tile', cfg.color);
             box.setAttribute('role', 'group');
             box.setAttribute('aria-label', cfg.label);
 
             const main = u.tag('button', 'rg-btn-main',
-                `<span style="pointer-events:none; color:#BAB9C0; display:flex;">${RG.svg(cfg.icon)}</span>` +
-                `<span style="font-size:9px; font-weight:600; color:#BAB9C0; margin-top:6px; text-transform:uppercase; pointer-events:none;">${cfg.label}</span>`);
+                `<span style="pointer-events:none; display:flex;">${RG.svg(cfg.icon)}</span>` +
+                `<span class="rg-btn-label">${cfg.label}</span>`);
             const badge = u.tag('button', 'rg-badge');
             main.type = badge.type = 'button';
             badge.setAttribute('aria-label', `${cfg.label} mode selector`);
@@ -187,11 +186,8 @@
                 main.disabled = badge.disabled = dis;
                 box.style.opacity = dis ? '0.35' : '1';
                 const v = cfg.get(), act = cfg.isAct ? cfg.isAct(v) : (v !== 0 && v !== 1 && v !== false);
-                box.style.background = act ? `${cfg.color}22` : 'rgba(255,255,255,0.03)';
-                box.style.borderColor = act ? `${cfg.color}66` : 'rgba(255,255,255,0.08)';
-                main.firstElementChild.style.color = act ? cfg.color : '#BAB9C0';
+                box.classList.toggle('rg-on', !!act);
                 badge.textContent = cfg.opts ? (cfg.opts[v]?.code || cfg.opts[v]?.text || '') : (v ? 'ON' : 'OFF');
-                badge.style.background = act ? cfg.color : 'rgba(0,0,0,0.6)';
                 main.setAttribute('aria-pressed', String(act));
                 badge.setAttribute('aria-pressed', String(act));
             });
@@ -205,30 +201,30 @@
 
         [
             {
-                label: 'Loops', icon: ICO.loop, color: '#38BDF8', dep: true, dropdown: true, opts: RG.lm, isAct: v => v > 1,
+                label: 'Loops', icon: ICO.loop, color: T.info, dep: true, dropdown: true, opts: RG.lm, isAct: v => v > 1,
                 get: () => S.loopSetting,
                 set: v => RG.setLoopMode(v),
                 click: toggleTo(() => S.loopSetting, v => RG.setLoopMode(v), () => S.lastActiveLoopSetting, 2)
             },
             {
-                label: 'Bullet', icon: ICO.bullet, color: '#FBBF24', dep: true, dropdown: true, opts: RG.bm, isAct: v => v > 0,
+                label: 'Bullet', icon: ICO.bullet, color: T.warning, dep: true, dropdown: true, opts: RG.bm, isAct: v => v > 0,
                 get: () => S.bulletMode,
                 set: v => RG.applyBulletMode(v),
                 click: toggleTo(() => S.bulletMode, v => RG.applyBulletMode(v), () => S.lastActiveBulletMode, 1)
             },
             {
-                label: 'Photos', icon: ICO.photo, color: '#FF2E56', dep: true, dropdown: true, opts: RG.pm, isAct: v => v > 0,
+                label: 'Photos', icon: ICO.photo, color: T.brand, dep: true, dropdown: true, opts: RG.pm, isAct: v => v > 0,
                 get: () => S.photoSkipMode,
                 set: v => RG.setPhotoMode(v),
                 click: () => RG.setPhotoMode(S.photoSkipMode === 0 ? 1 : 0)
             },
             {
-                label: 'Block', icon: ICO.block, color: '#FF335C', dep: true,
+                label: 'Block', icon: ICO.block, color: T.error, dep: true,
                 get: () => S.blockMasterEnabled,
                 click: () => { S.blockMasterEnabled = !S.blockMasterEnabled; RG.st.set('rg_block_master_enabled', S.blockMasterEnabled); }
             },
             {
-                label: 'Debug', icon: ICO.debug, color: '#A855F7', dep: false,
+                label: 'Debug', icon: ICO.debug, color: T.purple, dep: false,
                 get: () => S.showDebug,
                 click: () => {
                     S.showDebug = !S.showDebug;
@@ -248,29 +244,29 @@
         const card = u.tag('div', 'rg-card');
         card.style.marginBottom = '4px';
         card.innerHTML = `
-            <button type="button" id="rg-blk-toggle-hdr" class="rg-tglhdr" aria-expanded="false" style="padding:10px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none; background:rgba(255,255,255,0.015); transition:background 0.2s;">
-                <div style="display:flex; align-items:center; gap:6px; pointer-events:none;">
-                    <span style="font-size:10px; font-weight:700; color:#BAB9C0; letter-spacing:0.6px;">BLOCKLIST &amp; FILLERS</span>
-                    <span id="rg-blk-cnt" style="background:rgba(255,46,86,0.15); border:1px solid rgba(255,46,86,0.3); color:#FF2E56; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; font-family:monospace;">${S.blockedUsers.length}</span>
-                </div>
-                <span id="rg-blk-menu-chv" aria-hidden="true" style="font-size:8px; opacity:0.5; transition:transform 0.2s;">▼</span>
+            <button type="button" id="rg-blk-toggle-hdr" class="rg-tglhdr" aria-expanded="false">
+                <span class="rg-hdr-l">
+                    <span class="rg-sec">Blocklist &amp; Fillers</span>
+                    <span id="rg-blk-cnt" class="rg-count">${S.blockedUsers.length}</span>
+                </span>
+                <span id="rg-blk-menu-chv" class="rg-chev" aria-hidden="true">▼</span>
             </button>
-            <div id="rg-blk-cnt-wrap" style="display:${S.isBlocklistExpanded ? 'block' : 'none'}; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px;">
-                <div style="padding:0 12px 10px;">
-                    <div style="font-size:9px; font-weight:700; color:#BAB9C0; text-transform:uppercase; margin-bottom:6px;">Block Fillers</div>
+            <div id="rg-blk-cnt-wrap" style="display:${S.isBlocklistExpanded ? 'block' : 'none'}; border-top:1px solid var(--rg-line-soft); padding:12px 0 0;">
+                <div style="padding:0 12px 12px;">
+                    <div class="rg-sec" style="margin-bottom:8px;">Block Fillers</div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
                         ${FILLER_CHIPS.map(([id, key, label]) =>
             `<div id="${id}" class="rg-chip${S.fillers[key] ? ' rg-chip-act' : ''}"><span>${label}</span><span class="rg-chip-dot"></span></div>`).join('')}
                     </div>
                 </div>
-                <div style="padding:0 12px 8px; display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
-                    <input id="rg-blk-inp" type="text" placeholder="Add username..." style="flex:1 1 0%; min-width:0; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:11px; padding:5px 8px; outline:none;">
-                    <button id="rg-blk-add" type="button" style="flex:0 0 auto; white-space:nowrap; background:rgba(255,46,86,0.2); border:1px solid rgba(255,46,86,0.4); color:#FF2E56; font-size:10px; font-weight:700; border-radius:6px; padding:0 10px; cursor:pointer; height:26px; line-height:1; display:inline-flex; align-items:center; justify-content:center;">+ Add</button>
+                <div style="padding:0 12px 12px; display:flex; gap:8px; align-items:center; flex-wrap:nowrap;">
+                    <input id="rg-blk-inp" type="text" class="rg-input" placeholder="Add username...">
+                    <button id="rg-blk-add" type="button" class="rg-pill rg-pill-primary">+ Add</button>
                 </div>
-                <div style="padding:0 12px 10px;">
-                    <button id="rg-blk-cur" type="button" style="width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:#EFEEF0; font-size:10px; font-weight:600; border-radius:6px; padding:6px 0; cursor:pointer; transition:0.2s;">🚫 Block Current Creator</button>
+                <div style="padding:0 12px 12px;">
+                    <button id="rg-blk-cur" type="button" class="rg-pill rg-pill-secondary" style="width:100%;">Block Current Creator</button>
                 </div>
-                <div id="rg-blk-tags" style="display:flex; flex-wrap:wrap; gap:4px; max-height:150px; overflow-y:auto; overscroll-behavior:contain; padding:0 12px 10px;"></div>
+                <div id="rg-blk-tags" class="rg-tags rg-scroll" style="padding:0 12px 12px;"></div>
             </div>
         `;
 
@@ -308,17 +304,19 @@
         u.on(card.querySelector('#rg-blk-add'), 'click', submit);
         u.on(inp, 'keydown', (e) => { if (e.key === 'Enter') submit(e); });
 
-        u.on(card.querySelector('#rg-blk-cur'), 'click', (e) => {
+        const curBtn = card.querySelector('#rg-blk-cur');
+        const CUR_LABEL = 'Block Current Creator';
+        u.on(curBtn, 'click', (e) => {
             e.stopPropagation();
-            const btn = e.currentTarget, name = RG.extractUser(RG.getActiveEl());
+            const name = RG.extractUser(RG.getActiveEl());
             if (name) {
                 RG.blk.add(name);
                 renderTags();
-                btn.textContent = `✓ Blocked @${name}`;
+                curBtn.textContent = `Blocked @${name}`;
             } else {
-                btn.textContent = '⚠️ Creator not detected';
+                curBtn.textContent = 'Creator not detected';
             }
-            setTimeout(() => { btn.textContent = '🚫 Block Current Creator'; }, 1500);
+            setTimeout(() => { curBtn.textContent = CUR_LABEL; }, 1500);
         });
 
         u.on(tags, 'click', (e) => {
@@ -336,11 +334,11 @@
             hdr.setAttribute('aria-expanded', String(S.isBlocklistExpanded));
             tags.innerHTML = S.blockedUsers.length
                 ? S.blockedUsers.map(x => `
-                    <div style="display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; font-size:10px; font-family:monospace; color:#EFEEF0;">
+                    <div class="rg-tag">
                         <span>@${x}</span>
-                        <button type="button" data-del="${x}" aria-label="Remove @${x}" style="cursor:pointer; opacity:0.6; font-size:9px; margin-left:2px; padding:0; border:none; background:transparent; color:inherit; line-height:1;">✕</button>
+                        <button type="button" class="rg-tag-del" data-del="${x}" aria-label="Remove @${x}">✕</button>
                     </div>`).join('')
-                : '<span style="color:#7A7985; font-size:10px; font-style:italic;">No blocked users added.</span>';
+                : '<span class="rg-tiny-i">No blocked users added.</span>';
             requestAnimationFrame(syncHeight);
         }
 
@@ -351,23 +349,23 @@
 
     /* -- shell ---------------------------------------------------------------- */
     function header() {
-        const hdr = u.tag('div');
-        hdr.style.cssText = 'position:sticky; top:-12px; z-index:10; background:rgba(21,20,26,0.98); margin:-12px -12px 12px -12px; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; cursor:grab; user-select:none; border-radius:12px 12px 0 0;';
+        const hdr = u.tag('div', 'rg-hdr');
+        hdr.id = 'rg-menu-hdr';
         hdr.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                ${ICO.grip}<div id="rg-m-dot" aria-hidden="true" style="width:7px; height:7px; border-radius:50%; background:#10B981; box-shadow:0 0 7px #10B981; transition:0.2s;"></div>
-                <span style="font-weight:700; font-size:11px; letter-spacing:0.8px;">CONTROL CENTER</span>
+            <div class="rg-hdr-l">
+                ${ICO.grip}<div id="rg-m-dot" class="rg-dot" aria-hidden="true"></div>
+                <span class="rg-hdr-title">CONTROL CENTER</span>
             </div>
-            <div style="display:flex; gap:6px; align-items:center;">
+            <div class="rg-hdr-r">
                 <button type="button" id="rg-m-rst" class="rg-icobtn" aria-label="Snap panel to control button" title="Reset position">${ICO.reset}</button>
                 <button type="button" id="rg-m-cls" class="rg-icobtn" aria-label="Close control center" title="Close">✕</button>
             </div>
         `;
         const dot = hdr.querySelector('#rg-m-dot');
         updaters.push(() => {
-            const c = S.isAutoNavEnabled ? '#10B981' : '#FF2E56';
+            const c = S.isAutoNavEnabled ? T.success : T.brand;
             dot.style.background = c;
-            dot.style.boxShadow = `0 0 7px ${c}`;
+            dot.style.boxShadow = `0 0 8px ${c}`;
         });
         ui.drag(hdr, menu, { ignore: '#rg-m-cls, #rg-m-rst', onEnd: ui.savePos('rg_menu_pos')(menu) });
         u.on(hdr.querySelector('#rg-m-cls'), 'click', (e) => { e.stopPropagation(); ui.show(menu, false); ui.closeDropdown(); });
@@ -388,7 +386,7 @@
         menu = u.tag('div', 'rg-panel rg-panel-anim');
         menu.id = 'rg-settings-menu';
         menu.dataset.rgRun = RG.runId;
-        u.css(menu, { width: '285px', overflow: 'hidden', padding: '0', zIndex: '2147483647', display: 'none', borderRadius: '12px' });
+        u.css(menu, { width: '288px', overflow: 'hidden', padding: '0', zIndex: '2147483647', display: 'none' });
 
         const saved = RG.st.json('rg_menu_pos', 'null');
         if (saved && typeof saved === 'object') {
@@ -397,16 +395,16 @@
             menu.dataset.positioned = 'true';
         }
 
-        scroll = u.tag('div');
+        scroll = u.tag('div', 'rg-body rg-scroll');
         scroll.id = 'rg-settings-scroll';
-        u.css(scroll, { overflowY: 'auto', overflowX: 'hidden', padding: '12px', maxHeight: 'calc(100vh - 32px)', overscrollBehavior: 'contain' });
+        u.css(scroll, { overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100vh - 32px)', overscrollBehavior: 'contain' });
 
         menu.updateUI = refresh;
 
-        scroll.appendChild(header());
         scroll.appendChild(masterToggleCard());
         scroll.appendChild(speedCard());
         scroll.appendChild(blocklistCard());
+        menu.appendChild(header());
         menu.appendChild(scroll);
         document.body.appendChild(menu);
 
