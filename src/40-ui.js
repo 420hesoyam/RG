@@ -2,6 +2,10 @@
  * RG · 40 UI KIT
  * Shared presentational primitives: icons, stylesheet, panel show/hide,
  * drag, viewport clamping, dropdowns.
+ *
+ * Every colour, radius, size and font below is taken from redgifs.com's own
+ * design system (the custom properties in its shipped stylesheets), so the
+ * injected UI reads as part of the site instead of a foreign overlay.
  * ========================================================================== */
 (function (RG) {
     'use strict';
@@ -22,83 +26,202 @@
     const ICO = RG.ICONS = ICONS;
     RG.svg = svg;
 
+    /* -- semantic tones (the site palette, by role) ---------------------- */
+    const TONES = RG.TONES = {
+        brand: '#d70003',      // brand primary
+        accent: '#ebfa63',     // brand secondary (links, checked controls)
+        success: '#00d3a3',    // functional success
+        error: '#ff575a',      // functional error
+        warning: '#ffc815',    // functional warning
+        info: '#59c2e5',       // functional information
+        purple: '#8036f1',     // purple accent
+        text: '#efeef0',       // neutral 100
+        text_muted: '#bab9c0', // neutral 300
+        text_dim: '#94939d'    // neutral 400
+    };
+
     /* -- stylesheet ------------------------------------------------------- */
     const CSS = `
-        .rg-panel { position: fixed; background: rgba(21,20,26,0.95); color: #EFEEF0; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 16px 36px rgba(0,0,0,0.65); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; backdrop-filter: blur(20px); z-index: 2147483646; }
+        /* tokens, scoped to our own surfaces so the site is never touched */
+        .rg-panel, .rg-dropdown-menu,
+        .rg-panel *, .rg-dropdown-menu * { box-sizing: border-box; }
+
+        .rg-panel, .rg-dropdown-menu {
+            --rg-font: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --rg-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            --rg-bg-0: #0f0f0f;
+            --rg-bg-1: #090909;
+            --rg-bg-2: #191919;
+            --rg-bg-3: #302e2e;
+            --rg-hover: #28272a;
+            --rg-hover-2: #373333;
+            --rg-line: #ffffff1a;
+            --rg-line-soft: #ffffff0d;
+            --rg-line-strong: #ffffff3;
+            --rg-brand: #d70003;
+            --rg-accent: #ebfa63;
+            --rg-success: #00d3a3;
+            --rg-error: #ff575a;
+            --rg-warning: #ffc815;
+            --rg-info: #59c2e5;
+            --rg-text: #efeef0;
+            --rg-text-strong: #ffffff;
+            --rg-text-muted: #bab9c0;
+            --rg-text-dim: #94939d;
+            --rg-text-off: #efeef066;
+            --rg-pop: linear-gradient(270deg, #fff0 0%, #ffffff1a 70%);
+        }
+
+        .rg-panel {
+            position: fixed; z-index: 2147483646;
+            background: #0f0f0f; color: #efeef0;
+            border: 1px solid #ffffff1a; border-radius: 20px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.66);
+            font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px; line-height: 22px;
+            overflow: hidden;
+        }
         .rg-panel-anim { transition: opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1); opacity: 0; transform: scale(0.97) translateY(-4px); }
         .rg-panel-anim.rg-visible { opacity: 1; transform: scale(1) translateY(0); }
-        .rg-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
-        .rg-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer; transition: background 0.2s; width: 100%; border: none; background: transparent; font-family: inherit; color: inherit; text-align: left; }
-        .rg-row:hover { background: rgba(255,255,255,0.05); }
-        .rg-btn { aspect-ratio: 1.1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); cursor: pointer; position: relative; transition: 0.2s; user-select: none; padding: 0; }
-        .rg-btn:hover { background: rgba(255,255,255,0.08); }
-        .rg-btn:active { transform: scale(0.94); }
-        .rg-btn-main { position: absolute; inset: 0; border-radius: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 6px; cursor: pointer; background: transparent; border: none; font-family: inherit; color: #BAB9C0; }
-        .rg-btn-main:disabled { cursor: default; }
-        .rg-badge { position: absolute; top: 4px; right: 4px; font-size: 8px; font-weight: 700; background: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: 0.15s; -webkit-appearance: none; appearance: none; font-family: inherit; color: inherit; line-height: 1.2; }
-        .rg-badge:hover { transform: scale(1.1); background: rgba(255,255,255,0.18); }
-        .rg-badge:disabled { cursor: default; }
-        .rg-switch { width: 34px; height: 20px; border-radius: 10px; background: #35343d; position: relative; transition: 0.2s; box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); flex: 0 0 auto; }
-        .rg-switch-knob { width: 16px; height: 16px; background: #EFEEF0; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
-        .rg-icobtn { -webkit-appearance: none; appearance: none; background: transparent; border: none; padding: 4px; margin: 0; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.5; border-radius: 6px; transition: opacity 0.15s; }
-        .rg-icobtn:hover { opacity: 0.9; }
+
+        /* -- header bar -- */
+        .rg-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; background: #191919; border-bottom: 1px solid #ffffff1a; border-radius: 20px 20px 0 0; cursor: grab; user-select: none; flex: 0 0 auto; }
+        .rg-hdr-l, .rg-hdr-r { display: flex; align-items: center; gap: 8px; }
+        .rg-hdr-title { font-size: 14px; font-weight: 600; line-height: 16px; letter-spacing: 0.4px; color: #fff; }
+        .rg-hdr-ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 500; letter-spacing: 0; color: #94939d; }
+        .rg-dot { width: 8px; height: 8px; border-radius: 999px; background: #00d3a3; box-shadow: 0 0 8px #00d3a3; transition: background 0.2s, box-shadow 0.2s; flex: 0 0 auto; }
+
+        /* -- typography helpers -- */
+        .rg-sec { font-size: 10px; font-weight: 600; line-height: 13px; letter-spacing: 1px; text-transform: uppercase; color: #bab9c0; }
+        .rg-lbl { display: block; font-size: 9px; font-weight: 600; line-height: 13px; letter-spacing: 0.6px; text-transform: uppercase; color: #94939d; margin-bottom: 1px; }
+        .rg-val { font-size: 12px; font-weight: 600; line-height: 18px; color: #efeef0; }
+        .rg-val-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 600; }
+        .rg-val-right { text-align: right; }
+        .rg-tiny { font-size: 11px; line-height: 16px; color: #94939d; }
+        .rg-tiny-i { font-size: 11px; line-height: 16px; color: #94939d; font-style: italic; }
+        .rg-mini { font-size: 8px; font-weight: 700; letter-spacing: 0.3px; }
+
+        /* -- icon buttons -- */
+        .rg-icobtn { -webkit-appearance: none; appearance: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; margin: 0; border: 1px solid transparent; border-radius: 999px; background: transparent; color: #bab9c0; cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .rg-icobtn:hover { background: #ffffff0d; color: #fff; }
         .rg-icobtn:disabled { opacity: 0.6; cursor: progress; }
         .rg-spin { animation: rg-spin 0.9s linear infinite; }
         @keyframes rg-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .rg-tglhdr { -webkit-appearance: none; appearance: none; width: 100%; border: none; background: transparent; font-family: inherit; color: inherit; text-align: left; cursor: pointer; }
-        #rg-settings-menu .rg-switch { display: inline-block; }
-        .rg-panel button:focus-visible, .rg-btn button:focus-visible, .rg-dropdown-item:focus-visible { outline: 2px solid #38BDF8; outline-offset: 2px; }
-        @media (prefers-reduced-motion: reduce) {
-            .rg-panel-anim, .rg-dropdown-menu, .rg-stat-flash, .rg-switch, .rg-switch-knob, .rg-badge, .rg-spin { transition: none !important; animation: none !important; }
-        }
 
-        .rg-dropdown-menu {
-            position: fixed; z-index: 2147483647; background: rgba(18, 17, 23, 0.98);
-            border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.85);
-            display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(20px);
-            opacity: 0; transform: scale(0.96) translateY(-6px); transition: opacity 0.14s ease, transform 0.14s ease;
-            pointer-events: none;
-        }
-        .rg-dropdown-menu.rg-drop-visible { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
-        .rg-dropdown-hdr {
-            padding: 7px 12px; font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase;
-            color: #BAB9C0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); flex: 0 0 auto;
-            display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.02);
-        }
-        .rg-dropdown-list {
-            display: flex; flex-direction: column; gap: 1px; padding: 4px; overflow-y: auto; overflow-x: hidden; flex: 1 1 auto;
-        }
-        .rg-dropdown-item {
-            padding: 6px 9px; font-size: 11px; font-weight: 600; color: #D7D6DB; border-radius: 7px;
-            cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.12s, color 0.12s;
-        }
-        .rg-dropdown-item:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
-        .rg-dropdown-item:focus { outline: none; background: rgba(255, 255, 255, 0.11); color: #FFFFFF; }
-        .rg-dropdown-item.rg-active { background: rgba(255, 255, 255, 0.13); color: #FFFFFF; }
-        .rg-dropdown-code { font-family: monospace; font-size: 9px; font-weight: 700; min-width: 42px; text-align: center; padding: 2px 4px; border-radius: 5px; background: rgba(255, 255, 255, 0.07); }
-        .rg-dropdown-item.rg-active .rg-dropdown-code { background: rgba(255, 255, 255, 0.18); }
+        /* -- surfaces -- */
+        .rg-body { padding: 12px; }
+        .rg-card { background: #191919; border: 1px solid #ffffff0d; border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+        .rg-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 16px; border: none; background: transparent; font-family: inherit; color: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
+        .rg-row:hover { background: #ffffff0d; }
+        .rg-row-title { font-size: 13px; font-weight: 600; line-height: 18px; color: #efeef0; }
+        .rg-tglhdr { -webkit-appearance: none; appearance: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 16px; border: none; background: transparent; font-family: inherit; color: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
+        .rg-tglhdr:hover { background: #ffffff0d; }
+        .rg-chev { font-size: 9px; color: #94939d; transition: transform 0.2s; }
+
+        /* -- toggle (site toggle, scaled to panel density) -- */
+        .rg-switch { position: relative; width: 44px; height: 26px; border-radius: 999px; background: #ffffff3; flex: 0 0 auto; transition: background 0.18s; }
+        .rg-switch.rg-on { background: #ebfa63; }
+        .rg-switch-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: #fff; border: 1px solid #090909; transition: transform 0.18s cubic-bezier(0.16,1,0.3,1); }
+        .rg-switch.rg-on .rg-switch-knob { transform: translateX(18px); }
+
+        /* -- automation grid tiles -- */
+        .rg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 12px 12px; }
+        .rg-btn { position: relative; aspect-ratio: 1.1; border-radius: 14px; background: #ffffff0d; border: 1px solid #ffffff1a; transition: background 0.18s, border-color 0.18s, opacity 0.18s; }
+        .rg-btn:hover { background: #ffffff14; }
+        .rg-btn.rg-on { background: #ffffff1a; border-color: #ffffff33; background: color-mix(in srgb, var(--rg-tile, #bab9c0) 14%, transparent); border-color: color-mix(in srgb, var(--rg-tile, #bab9c0) 45%, transparent); }
+        .rg-btn-main { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 19px 6px 8px; border: none; border-radius: inherit; background: transparent; font-family: inherit; color: #bab9c0; cursor: pointer; transition: color 0.18s; }
+        .rg-btn-main:disabled { cursor: default; }
+        .rg-btn.rg-on .rg-btn-main { color: var(--rg-tile, #bab9c0); }
+        .rg-btn-label { font-size: 9px; font-weight: 600; line-height: 11px; letter-spacing: 0.4px; text-transform: uppercase; color: #bab9c0; pointer-events: none; }
+        .rg-btn.rg-on .rg-btn-label { color: var(--rg-text, #efeef0); }
+        .rg-badge { position: absolute; top: 4px; right: 4px; -webkit-appearance: none; appearance: none; padding: 2px 5px; border-radius: 999px; border: 1px solid #ffffff1a; background: #090909; color: #bab9c0; font-family: inherit; font-size: 8px; font-weight: 700; line-height: 12px; cursor: pointer; transition: transform 0.15s, background 0.15s, color 0.15s, border-color 0.15s; }
+        .rg-badge:hover { transform: scale(1.08); background: #ffffff1a; color: #fff; }
+        .rg-badge:disabled { cursor: default; }
+        .rg-btn.rg-on .rg-badge { background: var(--rg-tile, #bab9c0); border-color: transparent; color: #090909; }
+
+        /* -- pills, chips, buttons -- */
+        .rg-chip { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 12px; border-radius: 999px; background: #302e2e; border: 1px solid transparent; color: #efeef0; font-family: inherit; font-size: 11px; font-weight: 500; line-height: 16px; cursor: pointer; user-select: none; transition: background 0.15s, color 0.15s; }
+        .rg-chip:hover { background: #373333; }
+        .rg-chip.rg-chip-act { background: #ebfa63; border-color: #ebfa63; color: #090909; font-weight: 600; }
+        .rg-chip-dot { width: 6px; height: 6px; border-radius: 999px; background: #63616c; flex: 0 0 auto; }
+        .rg-chip-act .rg-chip-dot { background: #090909; box-shadow: none; }
+        .rg-pill { -webkit-appearance: none; appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 16px; border-radius: 999px; border: 1px solid transparent; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+        .rg-pill-primary { background: #ebfa63; color: #090909; }
+        .rg-pill-primary:hover { background: #daf02b; }
+        .rg-pill-secondary { background: #302e2e; border-color: #ffffff1a; color: #efeef0; }
+        .rg-pill-secondary:hover { background: #373333; }
+        .rg-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 7px; border-radius: 999px; background: #c71b1b1a; border: 1px solid #ff575a40; color: #ff575a; font-size: 9px; font-weight: 700; line-height: 13px; }
+
+        /* -- inputs -- */
+        .rg-input { -webkit-appearance: none; appearance: none; flex: 1 1 0%; min-width: 0; height: 32px; padding: 0 12px; border-radius: 999px; background: #090909; border: 1px solid #ffffff1a; color: #fff; font-family: inherit; font-size: 12px; line-height: 18px; outline: none; transition: border-color 0.15s; }
+        .rg-input::placeholder { color: #63616c; }
+        .rg-input:focus { border-color: #fff; }
+        .rg-range { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; margin: 4px 0; border-radius: 999px; background: #ffffff1a; outline: none; }
+        .rg-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 999px; background: #fff; border: 1px solid #090909; box-shadow: 0 0 0 3px #ebfa6340, 0 2px 6px rgba(0,0,0,0.6); cursor: pointer; transition: box-shadow 0.15s; }
+        .rg-range::-webkit-slider-thumb:hover { box-shadow: 0 0 0 5px #ebfa6359, 0 2px 6px rgba(0,0,0,0.6); }
+        .rg-range:disabled { opacity: 0.35; }
+
+        /* -- tags -- */
+        .rg-tags { display: flex; flex-wrap: wrap; gap: 6px; max-height: 150px; overflow-y: auto; overscroll-behavior: contain; }
+        .rg-tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 10px; border-radius: 999px; background: #ffffff0d; border: 1px solid #ffffff1a; color: #efeef0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+        .rg-tag-del { -webkit-appearance: none; appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: none; border-radius: 999px; background: transparent; color: #94939d; font-size: 9px; line-height: 1; cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .rg-tag-del:hover { background: #ffffff1a; color: #fff; }
+
+        /* -- stats -- */
+        .rg-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .rg-stat { background: #191919; border: 1px solid #ffffff0d; border-radius: 10px; padding: 8px 10px; min-width: 0; }
+        .rg-stat-k { font-size: 9px; font-weight: 600; line-height: 13px; letter-spacing: 0.6px; text-transform: uppercase; color: #94939d; }
+        .rg-stat-v { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; line-height: 18px; color: #fff; }
+        .rg-list { display: flex; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; }
+        .rg-list-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; line-height: 16px; padding: 3px 0; border-bottom: 1px solid #ffffff0d; }
+        .rg-list-k { color: #bab9c0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rg-list-v { padding: 1px 6px; border-radius: 6px; background: #ffffff0d; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; color: #efeef0; flex: 0 0 auto; }
 
         .rg-stat-flash { animation: rg-flash 0.35s ease; display: inline-block; }
         @keyframes rg-flash { 0% { transform: scale(1.25); filter: brightness(1.7); } 100% { transform: scale(1); filter: brightness(1); } }
-        #rg-settings-menu input[type=range] { -webkit-appearance: none; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); outline: none; width: 100%; margin: 2px 0; }
-        #rg-settings-menu input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: #EFEEF0; box-shadow: 0 0 0 3px rgba(255,46,86,0.35), 0 2px 6px rgba(0,0,0,0.6); cursor: pointer; transition: 0.15s; }
-        #rg-settings-menu input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 
-        #rg-settings-menu { max-height: calc(100vh - 32px); overscroll-behavior: contain; overflow: hidden; border-radius: 12px; }
-        #rg-settings-scroll { max-height: calc(100vh - 32px); overscroll-behavior: contain; overflow-y: auto; overflow-x: hidden; padding: 12px; }
-        #rg-settings-scroll::-webkit-scrollbar { width: 5px; }
-        #rg-settings-scroll::-webkit-scrollbar-track { background: transparent; }
-        #rg-settings-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 3px; }
-        #rg-settings-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
-        #rg-blk-tags::-webkit-scrollbar { width: 4px; }
-        #rg-blk-tags::-webkit-scrollbar-track { background: transparent; }
-        #rg-blk-tags::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
-        #rg-blk-tags::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); }
+        /* -- dropdown -- */
+        .rg-dropdown-menu {
+            position: fixed; z-index: 2147483647;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #090909; color: #efeef0;
+            border: 1px solid #ffffff1a; border-radius: 20px;
+            box-shadow: 0 18px 44px rgba(0,0,0,0.72);
+            font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 13px; line-height: 18px;
+            opacity: 0; transform: scale(0.96) translateY(-6px);
+            transition: opacity 0.14s ease, transform 0.14s ease;
+            pointer-events: none;
+        }
+        .rg-dropdown-menu.rg-drop-visible { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
+        .rg-dropdown-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #ffffff1a; background: #191919; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #bab9c0; flex: 0 0 auto; }
+        .rg-dropdown-hdr-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+        .rg-dropdown-list { display: flex; flex-direction: column; gap: 2px; padding: 8px; overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; }
+        .rg-dropdown-item { display: flex; align-items: center; gap: 12px; min-height: 38px; padding: 8px 12px; border-radius: 12px; color: #bab9c0; font-size: 13px; font-weight: 400; line-height: 18px; cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .rg-dropdown-item:hover { background: #ffffff0d; color: #fff; }
+        .rg-dropdown-item:focus { outline: none; background: #ffffff0d; color: #fff; }
+        .rg-dropdown-item.rg-active { background: linear-gradient(270deg, #fff0 0%, #ffffff1a 70%); color: #fff; font-weight: 500; }
+        .rg-dropdown-code { min-width: 44px; padding: 2px 6px; border-radius: 6px; background: #ffffff0d; color: #94939d; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; text-align: center; }
+        .rg-dropdown-item.rg-active .rg-dropdown-code { background: #ffffff1a; color: #fff; }
+        .rg-dropdown-check { font-size: 11px; margin-left: auto; }
 
-        .rg-chip { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; cursor: pointer; user-select: none; transition: 0.15s; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #BAB9C0; }
-        .rg-chip.rg-chip-act { background: rgba(255,46,86,0.15); border-color: rgba(255,46,86,0.38); color: #EFEEF0; }
-        .rg-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; }
-        .rg-chip.rg-chip-act .rg-chip-dot { background: #FF2E56; box-shadow: 0 0 5px #FF2E56; }
+        /* -- scrollbars -- */
+        .rg-scroll { overscroll-behavior: contain; }
+        .rg-scroll::-webkit-scrollbar { width: 6px; }
+        .rg-scroll::-webkit-scrollbar-track { background: transparent; }
+        .rg-scroll::-webkit-scrollbar-thumb { background: #ffffff1a; border-radius: 999px; }
+        .rg-scroll::-webkit-scrollbar-thumb:hover { background: #ffffff33; }
+
+        .rg-panel :focus-visible, .rg-dropdown-item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        .rg-dropdown-item:focus-visible { outline-offset: -2px; }
+
+        /* the sidebar gear lives in the site's own chrome, so it only borrows the palette */
+        .autoNextSettings button { color: #efeef0; transition: background 0.15s; border-radius: 12px; }
+        .autoNextSettings button:hover { background: #28272a; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .rg-panel-anim, .rg-dropdown-menu, .rg-stat-flash, .rg-switch, .rg-switch-knob, .rg-badge, .rg-btn, .rg-spin, .rg-chip, .rg-pill { transition: none !important; animation: none !important; }
+        }
     `;
 
     function installStyles() {
@@ -186,7 +309,7 @@
 
     const M = 8;
 
-    function showDropdown(anchor, options, curVal, onSelect, accent = '#38BDF8', title = '') {
+    function showDropdown(anchor, options, curVal, onSelect, accent = TONES.accent, title = '') {
         closeDropdown();
         const drop = u.tag('div', 'rg-dropdown-menu');
         drop.dataset.rgRun = RG.runId;
@@ -194,10 +317,10 @@
         if (title) {
             const cur = options[curVal];
             drop.appendChild(u.tag('div', 'rg-dropdown-hdr',
-                `<span>${title}</span><span style="font-family:monospace; font-size:10px; color:${accent}; font-weight:700;">${cur ? (cur.code || cur.text || '') : ''}</span>`));
+                `<span>${title}</span><span class="rg-dropdown-hdr-code" style="color:${accent};">${cur ? (cur.code || cur.text || '') : ''}</span>`));
         }
 
-        const list = u.tag('div', 'rg-dropdown-list');
+        const list = u.tag('div', 'rg-dropdown-list rg-scroll');
         list.setAttribute('role', 'listbox');
         list.setAttribute('aria-label', title || 'Selection');
 
@@ -206,7 +329,7 @@
             const item = u.tag('div', `rg-dropdown-item${active ? ' rg-active' : ''}`,
                 `<span class="rg-dropdown-code">${opt.code || ''}</span>` +
                 `<span style="flex:1;">${opt.text || opt.label || ''}</span>` +
-                (active ? `<span style="font-size:10px; color:${accent};">✓</span>` : ''));
+                (active ? `<span class="rg-dropdown-check" style="color:${accent};">✓</span>` : ''));
             item.setAttribute('role', 'option');
             item.setAttribute('aria-selected', String(active));
             item.tabIndex = 0;
@@ -263,7 +386,7 @@
         if (activeDropdown && !activeDropdown.contains(e.target) && !e.target.closest('.rg-badge')) closeDropdown();
     });
 
-    const ui = RG.ui = { installStyles, show, flashUpdate, drag, clampToViewport, savePos, showDropdown, closeDropdown, get dropdown() { return activeDropdown; } };
+    const ui = RG.ui = { installStyles, show, flashUpdate, drag, clampToViewport, savePos, showDropdown, closeDropdown, tones: TONES, get dropdown() { return activeDropdown; } };
     RG.clampToViewport = clampToViewport;
     RG.$ = $;
 })(window.RG);
