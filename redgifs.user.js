@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RedGifs Auto Production
 // @namespace    http://tampermonkey.net/
-// @version      0.3.0
+// @version      0.3.1
 // @description  Auto navigation for redgifs.com with creative bullet modes, time jumps, loop/speed controls and a unified blocklist + feed-filler manager.
 // @author       420hesoyam
 // @license      MIT
@@ -36,7 +36,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.3.0';             // keep in sync with @version
+    const VERSION = '0.3.1';             // keep in sync with @version
     const REPO = 'https://raw.githubusercontent.com/420hesoyam/RG/main/';
     const BASE = REPO + 'src/';
     const MODULES = [
@@ -96,9 +96,9 @@
         const el = document.createElement('div');
         el.textContent = 'RG: ' + msg;
         el.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483647;' +
-            'background:#0f0f0f;color:#efeef0;border:1px solid rgba(255,255,255,.1);border-radius:20px;' +
-            'padding:12px 20px;font:600 14px/22px "DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-            'box-shadow:0 16px 40px rgba(0,0,0,.66)';
+            'background:#15141a;color:#EFEEF0;border:1px solid rgba(255,255,255,.12);border-radius:8px;' +
+            'padding:8px 14px;font:600 11px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+            'box-shadow:0 16px 36px rgba(0,0,0,.65)';
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 8000);
     }
