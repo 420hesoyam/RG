@@ -20,7 +20,7 @@
             <div id="rg-debug-hdr" class="rg-hdr">
                 <div class="rg-hdr-l">
                     ${ICO.grip}<div id="rg-dot" class="rg-dot" aria-hidden="true"></div>
-                    <span class="rg-hdr-title">AUTONAV</span>
+                    <span class="rg-hdr-title">AUTONAVXXX</span>
                     <span class="rg-hdr-ver">v${RG.version}</span>
                 </div>
                 <div class="rg-hdr-r">
