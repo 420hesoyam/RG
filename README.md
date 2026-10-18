@@ -6,9 +6,7 @@ that handles both creators and feed filler modules.
 
 ## Install
 
-1. This repo is `github.com/420hesoyam/RG` and must stay **public** — the loader
-   fetches the modules over plain HTTPS with no auth token, so a private repo
-   returns 404 and nothing loads.
+1. Install Tampermonkey
 2. Open `redgifs.user.js`, copy the whole contents.
 3. Tampermonkey → Create new script → paste → Save. Reload redgifs.com.
 
