@@ -14,7 +14,9 @@
  *    cache-busts and reloads.
  * 5. The merged seek group: one RG.bm table (no RG.jm/RG.jp), the old jump
  *    setting migrates to a seek profile, every profile builds a usable plan.
- * 6. A push that touches src/ must bump @version, or Tampermonkey keeps
+ * 6. Regression guards for the 0.4.0 pass: loop 0 migration, replay seeking,
+ *    hydrated creator/image probes, photo skip stats, metrics, and escaping.
+ * 7. A push that touches src/ must bump @version, or Tampermonkey keeps
  *    serving the installed copy.
  */
 
@@ -362,7 +364,211 @@ await check('sync cache-busts every module and reloads',
         'profile 1 leaves currentTime untouched');
 }
 
-/* -- 6. a push without a version bump is invisible to Tampermonkey -------- */
+/* -- 6. 0.4.0 regression guards ------------------------------------------ */
+
+{
+    const { RG } = loadModules(['src/00-core.js'], {
+        rg_loop_setting: '0',
+        rg_speed_val: '99',
+        rg_photo_skip_mode: '0',
+        rg_panel_pos: 'not json'
+    });
+    const S = RG.S;
+
+    await check('loop mode 0 migrates to the valid 1x mode',
+        S.loopSetting === 1 && RG.lm[S.loopSetting].code === '1x',
+        `rg_loop_setting=0 -> ${S.loopSetting}`);
+
+    await check('stored speed is clamped to the supported range',
+        S.speedValue === 3 && S.runtimeSpeedTarget === 3, `99 -> ${S.speedValue}x`);
+
+    await check('photo mode 0 is explicitly "keep", not a skip mode',
+        S.photoSkipMode === 0 && /Off/.test(RG.pm[0].text) && RG.pm[0].code === 'OFF',
+        `${RG.pm[0].code} "${RG.pm[0].text}"`);
+
+    await check('a corrupt panel position falls back to the default',
+        S.panelPos.top === '70px' && S.panelPos.left === '16px',
+        JSON.stringify(S.panelPos));
+
+    const { RG: kept } = loadModules(['src/00-core.js'], {
+        rg_panel_pos: '{"top":"120px","left":"220px"}'
+    });
+    await check('a valid saved panel position is preserved',
+        kept.S.panelPos.top === '120px' && kept.S.panelPos.left === '220px',
+        JSON.stringify(kept.S.panelPos));
+
+    await check('HTML escaping neutralises markup and attribute quotes',
+        RG.u.esc(`<img src=x onerror="x"> & '`) ===
+        '&lt;img src=x onerror=&quot;x&quot;&gt; &amp; &#39;',
+        RG.u.esc('<b>"&'));
+
+    /* The drag helper calls onEnd immediately at bind time, so a direct
+     * ui.savePos(...)(el) call persisted whatever position existed then and
+     * ignored every later drag. The save has to be deferred with a closure. */
+    const panelSrc = readFileSync(join(root, 'src/50-panel.js'), 'utf8');
+    const menuSrc = readFileSync(join(root, 'src/60-menu.js'), 'utf8');
+    await check('drag end handlers defer the position save until release',
+        /onEnd:\s*\(\)\s*=>\s*ui\.savePos\('rg_panel_pos'\)\(panel\)/.test(panelSrc) &&
+        /onEnd:\s*\(\)\s*=>\s*ui\.savePos\('rg_menu_pos'\)\(menu\)/.test(menuSrc),
+        'panel and menu onEnd are functions');
+
+    const openMenuSrc = (menuSrc.match(/function openMenu\([\s\S]*?\n    \}/) || [''])[0];
+    await check('reopening the control center never re-runs auto-placement',
+        /const firstOpen = /.test(openMenuSrc) &&
+        /if \(!firstOpen\) \{[\s\S]*?return;[\s\S]*?avoidOverlapWithDebugPanel\(m\)/.test(openMenuSrc),
+        'overlap avoidance is gated to the first open');
+}
+
+{
+    const { RG, sandbox } = loadModules(['src/00-core.js', 'src/10-dom.js']);
+    const ctx = deterministic(sandbox);
+
+    let name = '';
+    const userEl = {
+        querySelector(sel) {
+            if (sel === '.userName') return name ? { textContent: name } : null;
+            return null;
+        }
+    };
+    const first = RG.extractUserCached(userEl);
+    ctx.__advance(400);
+    name = 'Alice';
+    const stillCached = RG.extractUserCached(userEl);
+    ctx.__advance(700);
+    const rehydrated = RG.extractUserCached(userEl);
+
+    await check('a null creator result is re-probed after hydration',
+        first === null && stillCached === null && rehydrated === 'alice',
+        `null -> ${stillCached} -> ${rehydrated} (cache 1000ms)`);
+
+    const classes = new Set(['GifPreview']);
+    let img = null, video = null;
+    const mediaEl = {
+        className: 'GifPreview',
+        childElementCount: 1,
+        classList: { contains: c => classes.has(c) },
+        querySelector(sel) {
+            if (sel === '.ImageGif') return img;
+            if (sel === 'video') return video;
+            return null;
+        }
+    };
+    const shell = RG.isImageEl(mediaEl);
+    img = {};
+    const hydratedPhoto = RG.isImageEl(mediaEl);
+    video = {};
+    const swappedVideo = RG.isImageEl(mediaEl);
+
+    await check('image classification re-probes hydration and media swaps',
+        shell === false && hydratedPhoto === true && swappedVideo === false,
+        `shell=${shell}, photo=${hydratedPhoto}, recycled video=${swappedVideo}`);
+
+    const { RG: loopRG } = loadModules(['src/00-core.js', 'src/10-dom.js', 'src/20-player.js']);
+    const LS = loopRG.S;
+    LS.baseSpeed = 1;
+    LS.bulletMode = 0;
+    LS.loopSetting = 2;
+    LS.currentLoop = 1;
+    LS.runtimeLoopTarget = 2;
+    LS.finishCommitmentStart = 123;
+    const fakeV = { currentTime: 19.8, duration: 20, playbackRate: 1, seeking: false };
+    loopRG.applyLoopEffects(fakeV);
+
+    await check('a loop replay resets the previous-frame marker (loops used to flash by)',
+        fakeV.currentTime === 0 && LS.previousFrameTime === 0 &&
+        LS.finishCommitmentStart === 0 && LS.stats.loops === 1,
+        `currentTime=${fakeV.currentTime}, previousFrameTime=${LS.previousFrameTime}, loops=${LS.stats.loops}`);
+
+    LS.currentLoop = 3;
+    loopRG.setLoopMode(1);
+    await check('turning loops off clamps the visible counter and never stores 0',
+        LS.loopSetting === 1 && LS.runtimeLoopTarget === 1 && LS.currentLoop === 1 &&
+        loopRG.st.get('rg_loop_setting', '') === '1',
+        `mode=${LS.loopSetting}, target=${LS.runtimeLoopTarget}, current=${LS.currentLoop}`);
+
+    loopRG.setLoopMode(18);
+    await check('Pass & Skip restores itself instead of storing a derived count',
+        LS.lastActiveLoopSetting === 18 && LS.runtimeLoopTarget === 2,
+        `lastActive=${LS.lastActiveLoopSetting}, target=${LS.runtimeLoopTarget}`);
+
+    loopRG.setPhotoMode(2);
+    loopRG.setPhotoMode(0);
+    await check('photo mode remembers its last active skip mode',
+        LS.photoSkipMode === 0 && LS.lastActivePhotoMode === 2 &&
+        loopRG.st.get('rg_last_photo_mode', '') === '2',
+        `off, lastActive=${LS.lastActivePhotoMode}`);
+}
+
+{
+    const { RG, sandbox } = loadModules([
+        'src/00-core.js', 'src/10-dom.js', 'src/20-player.js',
+        'src/30-skip.js', 'src/90-boot.js'
+    ]);
+    const ctx = deterministic(sandbox);
+    const S = RG.S;
+    const v = {
+        currentTime: 1.5, duration: 20, playbackRate: 1, seeking: false,
+        ended: false, paused: false, play: () => Promise.resolve()
+    };
+    const el = {};
+
+    RG.getActiveElCached = () => el;
+    RG.checkFillerBlocked = () => null;
+    RG.extractUserCached = () => null;
+    RG.ensureUIExists = () => { };
+    RG.getDomCached = () => ({ v, cd: null });
+    RG.getMediaId = () => 'media-1';
+    RG.isImageEl = () => false;
+    RG.setRate = () => { };
+    RG.tryBulletJump = () => { };
+    RG.bulletFinished = () => false;
+    RG.loopShouldContinue = () => false;
+    RG.setDebug = () => { };
+
+    S.isAutoNavEnabled = true;
+    S.blockMasterEnabled = true;
+    S.bulletMode = 0;
+    S.loopSetting = 1;
+    S.globalCooldownEnd = 0;
+    S.currentVideoId = 'media-1';
+    S.currentVideoStartTime = Date.now() - 3000;
+    S.lastSkippedId = null;
+    S.stats.lastTickAt = 0;
+    S.stats.watchMs = 0;
+
+    RG.tick();
+    ctx.__advance(250);
+    RG.tick();
+
+    await check('the tick records watch time and live media progress',
+        S.stats.watchMs === 250 && S.stats.mediaTime === 1.5 && S.stats.mediaDuration === 20,
+        `watch=${S.stats.watchMs}ms, media=${S.stats.mediaTime}/${S.stats.mediaDuration}s`);
+
+    const skips = [];
+    RG.performSkip = (node, lock, type) => skips.push({ lock, type });
+    RG.isImageEl = () => true;
+    RG.getMediaId = () => 'photo-1';
+    S.currentVideoId = 'photo-1';
+    S.photoSkipMode = 1;
+    S.lastSkippedId = null;
+    S.globalCooldownEnd = 0;
+    ctx.__advance(50);
+    RG.tick();
+
+    await check('an instant photo skip is counted as a photo, not as blocked',
+        skips.length === 1 && skips[0].type === 'photo' &&
+        skips[0].lock === 'PHOTO_photo-1' && S.stats.blocked === 0,
+        JSON.stringify(skips[0]));
+
+    S.photoSkipMode = 0;
+    ctx.__advance(1000);
+    RG.tick();
+    await check('photo mode 0 keeps photos without touching the skip counter',
+        skips.length === 1 && S.stats.blocked === 0,
+        `photo skips=${skips.length}, photo mode=0`);
+}
+
+/* -- 7. a push without a version bump is invisible to Tampermonkey -------- */
 
 {
     const git = (...args) => {

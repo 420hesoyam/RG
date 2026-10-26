@@ -28,7 +28,7 @@
     function onKeyDown(e) {
         if (e.key !== 'Escape') return;
         const m = RG.$('rg-settings-menu');
-        if (m && m.classList.contains('rg-visible')) ui.show(m, false);
+        if (m && (m.dataset.open === 'true' || m.classList.contains('rg-visible'))) RG.closeMenu();
         ui.closeDropdown();
     }
 
@@ -55,21 +55,48 @@
         return true;
     }
 
+    /* -- watch-time accounting ------------------------------------------------ */
+    /* Watch time is active-media presence, not raw page uptime. A stale gap
+     * (tab in the background, no media for a while) is ignored instead of
+     * being counted as one giant sample. */
+    function trackWatch() {
+        const now = Date.now();
+        const last = S.stats.lastTickAt;
+        S.stats.lastTickAt = now;
+        const dt = last ? now - last : 0;
+        if (dt > 0 && dt < 1000) S.stats.watchMs += dt;
+    }
+
     /* -- photo branch --------------------------------------------------------- */
     function handlePhoto(el, curId) {
         if (S.currentVideoId !== curId) RG.handleNewVideo(curId);
+        S.stats.mediaTime = 0;
+        S.stats.mediaDuration = 0;
+
+        /* 0 = keep photos (never treated as blocked/skipped). */
+        if (S.photoSkipMode === 0) {
+            RG.setDebug(S.isAutoNavEnabled ? 'Photo Kept' : 'Photos Manual', 'OFF');
+            return;
+        }
+        if (!S.isAutoNavEnabled) {
+            RG.setDebug('Photos Manual', 'PAUSED');
+            return;
+        }
         if (Date.now() < S.globalCooldownEnd) { RG.setDebug('Nav Cooldown', 'WAIT'); return; }
-        if (!S.isAutoNavEnabled) return;
 
         if (S.photoSkipMode === 1) {
-            const lock = `BLOCK_PHOTO_${curId}`;
+            const lock = `PHOTO_${curId}`;
             if (S.lastSkippedId === lock && Date.now() < S.globalCooldownEnd) return;
             RG.setDebug('SKIP: Photo', 'INSTANT');
-            RG.performSkip(el, lock, 'blocked', 'Photo');
+            RG.performSkip(el, lock, 'photo');
         } else if (S.photoSkipMode === 2) {
             const wt = Date.now() - S.currentVideoStartTime;
-            if (wt >= cfg.photoWatchTime) RG.performSkip(el, curId, 'standard');
-            else RG.setDebug('Watching Photo', `${Math.ceil((cfg.photoWatchTime - wt) / 1000)}s`);
+            if (wt >= cfg.photoWatchTime) {
+                RG.setDebug('SKIP: Photo (Watched)', 'DONE');
+                RG.performSkip(el, curId, 'photo');
+            } else {
+                RG.setDebug('Watching Photo', `${Math.ceil((cfg.photoWatchTime - wt) / 1000)}s`);
+            }
         }
     }
 
@@ -94,6 +121,8 @@
     /* -- video branch ----------------------------------------------------------- */
     function handleVideo(el, v, cd, curId) {
         if (S.currentVideoId !== curId) RG.handleNewVideo(curId);
+        S.stats.mediaTime = v.currentTime || 0;
+        S.stats.mediaDuration = isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
         if (Date.now() < S.globalCooldownEnd) { RG.setDebug('Nav Cooldown', 'WAIT'); return; }
 
         RG.setRate(v);
@@ -163,8 +192,9 @@
             const { v, cd } = RG.getDomCached(el);
             const curId = RG.getMediaId(el, v);
 
-            if (RG.isImageEl(el)) return handlePhoto(el, curId);
+            if (RG.isImageEl(el)) { trackWatch(); return handlePhoto(el, curId); }
             if (!v) { RG.setDebug('Loading Media', '--'); return; }
+            trackWatch();
             handleVideo(el, v, cd, curId);
         } catch (e) {
             RG.setDebug(`Error: ${e.message}`, '--');

@@ -18,8 +18,13 @@
 
     let _actEl = null, _actDirty = true, _actTime = 0;
     const invalidate = () => { _actDirty = true; };
+    /* The feed scrolls in an inner .App container on redgifs, so a plain
+     * window listener misses most scrolls. Capture catches both. */
     u.on(window, 'scroll', invalidate, { passive: true });
+    u.on(document, 'scroll', invalidate, { passive: true, capture: true });
     u.on(window, 'resize', invalidate, { passive: true });
+    u.on(window, 'wheel', invalidate, { passive: true });
+    u.on(document, 'touchmove', invalidate, { passive: true });
 
     function getActiveElCached() {
         const now = Date.now();
@@ -61,10 +66,20 @@
         return m ? m[1].toLowerCase() : null;
     }
 
-    let _uEl = null, _uVal = null;
+    /* React can hand us the module shell before the creator name lands in it.
+     * Caching that first null forever made "block by creator" miss the video
+     * (same class of bug as the pre-hydration <video> latch). Re-probe null
+     * results, and refresh a positive result occasionally in case the module
+     * node was reused for the next item. */
+    const USER_CACHE_MS = 1000;
+    let _uEl = null, _uVal = null, _uAt = 0;
     function extractUserCached(el) {
-        if (el === _uEl) return _uVal;
-        return (_uEl = el, _uVal = extractUser(el));
+        const now = Date.now();
+        if (el === _uEl && now - _uAt < USER_CACHE_MS) return _uVal;
+        _uEl = el;
+        _uVal = extractUser(el);
+        _uAt = now;
+        return _uVal;
     }
     RG.getMediaId = getMediaId;
     RG.extractUser = extractUser;
@@ -83,8 +98,17 @@
         for (const [key, label, selfSel, childSel] of FILLERS) {
             if (S.fillers[key] && (el.matches(selfSel) || el.querySelector(childSel))) return label;
         }
-        if (el.classList.contains('FeedModule') || el.hasAttribute('data-feed-module-type')) return '[Filler]';
-        return null;
+
+        /* Unknown feed modules are only fillers when at least one filler type
+         * is enabled, and never when the node is actually a media item. The
+         * old unconditional fallback could mistake a hydrated video module
+         * for filler and skip it over and over. */
+        const anyFiller = FILLERS.some(([key]) => S.fillers[key]);
+        if (!anyFiller) return null;
+        const isModule = el.classList.contains('FeedModule') || el.hasAttribute('data-feed-module-type');
+        if (!isModule || el.matches('.GifPreview')) return null;
+        if (el.querySelector('a[href*="/watch/"], .countdown, .userInfo, .GifPreview-InfoAndSidebar')) return null;
+        return '[Filler]';
     }
     RG.checkFillerBlocked = checkFillerBlocked;
 
@@ -111,18 +135,29 @@
         return { v: _dV, cd: _dCd };
     }
 
-    /* Same rule as above: memoize only hydrated modules. An empty shell has to
-     * stay re-probed, otherwise a photo module classified before React filled
-     * it would never be recognised as one. */
+    /* Same rule as above: never memoize a "not an image yet" answer. The cache
+     * key includes the node's class/child signature so a recycled module that
+     * switches from video to photo is probed again. */
     const _imgCache = new WeakMap();
     function isImageEl(el) {
         if (!el) return false;
-        const cached = _imgCache.get(el);
-        if (cached !== undefined) return cached;
+        if (el.classList.contains('GifPreview_isImage')) return true;
         if (el.childElementCount === 0) return false;
-        const r = el.classList.contains('GifPreview_isImage') || !!el.querySelector('.ImageGif');
-        _imgCache.set(el, r);
-        return r;
+        const sig = `${el.className || ''}|${el.childElementCount}`;
+        const cached = _imgCache.get(el);
+        if (cached && cached.sig === sig) {
+            /* A recycled module can swap its media without changing the shell
+             * signature; never let a cached answer hide the new media type. */
+            if (cached.value) return !el.querySelector('video');
+            if (el.querySelector('video')) return false;
+        }
+        const value = !!el.querySelector('.ImageGif');
+        /* Decide only once the node has hydrated into something recognisable. */
+        if (value || el.querySelector('video') || el.classList.contains('GifPreview_isVideo')) {
+            _imgCache.set(el, { sig, value });
+            return value;
+        }
+        return false;
     }
     RG.getDomCached = getDomCached;
     RG.isImageEl = isImageEl;
@@ -135,7 +170,19 @@
     function ensureUIExists(activeDiv) {
         if (!activeDiv) return;
         if (activeDiv.__rg_uiDone) {
-            if (activeDiv.__rg_uiBtn && document.contains(activeDiv.__rg_uiBtn)) return;
+            const existing = activeDiv.__rg_uiBtn;
+            if (existing && document.contains(existing)) {
+                /* Feed modules keep their own sidebar button; keep the shared
+                 * reference on the active one so the menu anchors here, not
+                 * on whatever module happened to be active last. */
+                const own = existing.querySelector('button');
+                if (own) {
+                    btn = own;
+                    syncControlBtn();
+                    return;
+                }
+                existing.remove();
+            }
             activeDiv.__rg_uiDone = false;
         }
         const side = activeDiv.querySelector('.sideBar');
@@ -144,24 +191,18 @@
 
         const li = u.tag('li', 'sideBarItem autoNextSettings');
         li.dataset.rgRun = RG.runId;
-        btn = u.tag('button');
+        btn = u.tag('button', 'rg-gear-btn');
         btn.type = 'button';
         btn.setAttribute('aria-label', 'Open control center');
+        btn.setAttribute('aria-haspopup', 'dialog');
+        btn.setAttribute('aria-expanded', 'false');
         btn.title = 'Control center';
-        btn.style.cssText = 'background:transparent; border:none; cursor:pointer; padding:0; display:block;';
         btn.onclick = (e) => {
             e.stopPropagation();
             const m = RG.getOrCreateMenu();
-            if (m.classList.contains('rg-visible')) {
-                RG.ui.show(m, false);
-                RG.ui.closeDropdown();
-            } else {
-                RG.resetDebugPosition();
-                RG.positionMenuNearAnchor(m, btn);
-                RG.ui.show(m, true);
-                requestAnimationFrame(() => { RG.avoidOverlapWithDebugPanel(m); RG.menu && RG.menu.syncHeight(m); });
-                setTimeout(() => RG.menu && RG.menu.syncHeight(m), 220);
-            }
+            const open = m.dataset.open === 'true' || m.classList.contains('rg-visible');
+            if (open) RG.closeMenu();
+            else RG.openMenu(e.currentTarget || btn);
         };
         li.appendChild(btn);
         side.insertBefore(li, side.firstChild);
@@ -169,10 +210,24 @@
         RG.syncControlBtn();
     }
 
+    let _btnOpen = false;
     function syncControlBtn() {
-        if (btn && document.contains(btn)) btn.innerHTML = GEAR;
+        if (btn && document.contains(btn)) {
+            if (!btn.querySelector('svg')) btn.innerHTML = GEAR;
+            btn.setAttribute('aria-expanded', String(_btnOpen));
+        }
+    }
+    function setControlExpanded(on) {
+        _btnOpen = !!on;
+        document.querySelectorAll('.autoNextSettings .rg-gear-btn').forEach(b => {
+            b.setAttribute('aria-expanded', String(_btnOpen));
+        });
+        syncControlBtn();
     }
     RG.ensureUIExists = ensureUIExists;
     RG.syncControlBtn = syncControlBtn;
-    RG.getControlBtn = () => btn;
+    RG.setControlExpanded = setControlExpanded;
+    RG.getControlBtn = () => (btn && document.contains(btn))
+        ? btn
+        : document.querySelector('.autoNextSettings button');
 })(window.RG);

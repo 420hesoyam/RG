@@ -62,23 +62,27 @@ window.RG = window.RG || {};
         18: { text: 'Pass & Skip', code: 'PASK' }
     };
     RG.pm = {                                     // photo modes
-        0: { text: 'Skip Photos', code: 'SKP' },
+        0: { text: 'Off (Keep Photos)', code: 'OFF' },
         1: { text: 'Instant Skip', code: 'INS' },
         2: { text: 'Watch 3.5s', code: 'DLY' }
     };
 
     /* -- storage -------------------------------------------------------- */
+    const parseDefault = d => {
+        if (typeof d !== 'string') return d;
+        try { return JSON.parse(d); } catch (_) { return d; }
+    };
     const st = RG.st = {
         get: (k, d) => { const v = localStorage.getItem(k); return v === null ? d : v; },
-        set: (k, v) => localStorage.setItem(k, v),
-        num: (k, d) => parseFloat(st.get(k, d)),
-        int: (k, d) => parseInt(st.get(k, d)),
+        set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode / quota */ } },
+        num: (k, d) => { const v = parseFloat(st.get(k, d)); return isFinite(v) ? v : d; },
+        int: (k, d) => { const v = parseInt(st.get(k, d), 10); return isFinite(v) ? v : d; },
         bool: (k, d) => st.get(k, String(d)) === 'true',
         json: (k, d) => {
             try {
                 const v = localStorage.getItem(k);
-                return v === null ? JSON.parse(d) : JSON.parse(v);
-            } catch (_) { return {}; }
+                return v === null ? parseDefault(d) : JSON.parse(v);
+            } catch (_) { return parseDefault(d); }
         }
     };
 
@@ -106,6 +110,7 @@ window.RG = window.RG || {};
 
         blockedUsers: loadBlocked(),
         photoSkipMode: st.int('rg_photo_skip_mode', 1),
+        lastActivePhotoMode: st.int('rg_last_photo_mode', 2),
         bulletMode: st.int('rg_bullet_mode', 0),
         lastActiveBulletMode: st.int('rg_last_bullet_mode', 1),
         loopSetting: st.int('rg_loop_setting', 1),
@@ -116,6 +121,7 @@ window.RG = window.RG || {};
         panelPos: st.json('rg_panel_pos', '{"top":"70px","left":"16px"}'),
         isStatsExpanded: st.bool('rg_stats_expanded', false),
         isBlockedExpanded: st.bool('rg_blocked_expanded', false),
+        isMetricsExpanded: st.bool('rg_metrics_expanded', false),
 
         // runtime (never persisted)
         lastSkippedId: null, lastSkipActionTime: 0, globalCooldownEnd: 0,
@@ -128,16 +134,32 @@ window.RG = window.RG || {};
         jumpsRemaining: 0, loopTimedStart: 0, baseSpeed: 1,
 
         debug: { status: 'Initializing...', time: '--' },
-        stats: { total: 0, blocked: 0, bullet: 0, standard: 0, blockedBreakdown: {} }
+        stats: {
+            total: 0, blocked: 0, bullet: 0, standard: 0, photos: 0, loops: 0,
+            blockedBreakdown: {},
+            startedAt: Date.now(), lastSkipAt: 0, lastSkipType: null,
+            watchMs: 0, lastTickAt: 0,
+            mediaStartedAt: 0, dwellTotalMs: 0, dwellSamples: 0,
+            mediaTime: 0, mediaDuration: 0
+        }
     };
 
     const S = RG.S;
     const san = (map, v, d) => (map[v] ? v : d);
     S.bulletMode = san(RG.bm, S.bulletMode, 0);
     S.lastActiveBulletMode = san(RG.bm, S.lastActiveBulletMode, 1);
-    S.loopSetting = san(RG.lm, S.loopSetting, 1);
+    S.loopSetting = san(RG.lm, S.loopSetting, 1);          // 0 from 0.3.x is not a mode
     S.lastActiveLoopSetting = san(RG.lm, S.lastActiveLoopSetting, 2);
     S.photoSkipMode = san(RG.pm, S.photoSkipMode, 1);
+    S.lastActivePhotoMode = san(RG.pm, S.lastActivePhotoMode, 2);
+    if (!S.lastActivePhotoMode) S.lastActivePhotoMode = 1;
+    S.speedValue = isFinite(S.speedValue) ? Math.max(0.5, Math.min(3, S.speedValue)) : 1;
+    S.runtimeSpeedTarget = S.speedValue;
+
+    /* A corrupt position must not put the panel off-screen forever. */
+    const pp = (S.panelPos && typeof S.panelPos === 'object' && !Array.isArray(S.panelPos)) ? S.panelPos : {};
+    const px = v => (typeof v === 'string' && /^-?\d+(\.\d+)?px$/.test(v)) ? v : null;
+    S.panelPos = { top: px(pp.top) || '70px', left: px(pp.left) || '16px' };
 
     /* -- one-time migration: jump modes became seek profiles in 0.2.5 ----- */
     /* old Low/Regular/RNG chance jumps all collapse into the RNG Seek profile */
@@ -190,6 +212,22 @@ window.RG = window.RG || {};
         clamp: (v, lo, hi) => Math.max(lo, Math.min(v, hi)),
         rnd: (lo, hi) => Math.random() * (hi - lo) + lo,
         rint: (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo,
+        esc: s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]),
+        fmtDur: ms => {
+            const s = Math.max(0, Math.round((ms || 0) / 1000));
+            if (s < 60) return `${s}s`;
+            const m = Math.floor(s / 60), r = s % 60;
+            if (m < 60) return r ? `${m}m ${r}s` : `${m}m`;
+            const h = Math.floor(m / 60);
+            return `${h}h ${m % 60}m`;
+        },
+        fmtClock: ms => {
+            const s = Math.max(0, Math.round((ms || 0) / 1000));
+            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+            return `${h ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+        },
         tag: (tag, cls, html) => {
             const n = document.createElement(tag);
             if (cls) n.className = cls;

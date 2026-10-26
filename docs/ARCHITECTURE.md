@@ -38,7 +38,7 @@ instead, skipping the loader entirely.
 90-boot     policy / tick        depends on everything
 60-menu     control center UI    50-panel, 40-ui, 20-player, 10-dom
 50-panel    debug panel UI       40-ui, 00-core
-40-ui       presentational kit   00-core
+40-ui       kit + design tokens  00-core
 30-skip     navigation action    00-core, 10-dom
 20-player   playback control     00-core, 10-dom
 10-dom      page probes          00-core
@@ -65,9 +65,9 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 | `RG.modules`, `RG.syncAndReload`, `RG.fetchRemoteVersion` | entry-file loader: module list, cache-busted sync + reload, remote `@version` probe |
 | `RG.version` | script version, from `VERSION` next to the `@version` in the entry |
 | `RG.runId` | per-run token; every element this run owns carries it as `data-rg-run` |
-| `RG.ui` | icons, stylesheet, `show`, `flashUpdate`, `drag`, `clampToViewport`, `showDropdown`, `closeDropdown` |
-| `RG.panel`, `RG.ensurePanel`, `RG.syncModules`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition` | debug panel |
-| `RG.menu`, `RG.getOrCreateMenu`, `RG.refresh`, `RG.refreshMenu` | control center |
+| `RG.ui` | icons, redgifs design tokens and stylesheet, `show`, `flashUpdate`, `drag`, `clampToViewport`, `savePos`, `showDropdown`, `closeDropdown` |
+| `RG.panel`, `RG.ensurePanel`, `RG.syncModules`, `RG.updateDebugPanel`, `RG.setDebug`, `RG.resetDebugPosition`, `RG.getDiagnostics`, `RG.copyDiagnostics` | debug panel |
+| `RG.menu`, `RG.getOrCreateMenu`, `RG.openMenu`, `RG.closeMenu`, `RG.positionMenuNearAnchor`, `RG.refresh`, `RG.refreshMenu` | control center |
 | `RG.getActiveEl*`, `RG.getMediaId`, `RG.extractUser*`, `RG.getDomCached`, `RG.isImageEl`, `RG.checkFillerBlocked`, `RG.ensureUIExists` | DOM probes |
 | `RG.setRate`, `RG.applyActiveSpeed`, `RG.handleNewVideo`, `RG.commitBullet`, `RG.tryBulletJump`, `RG.maybeRngSeek`, `RG.bulletFinished`, `RG.loopShouldContinue`, `RG.applyLoopEffects`, `RG.setLoopMode`, `RG.applyBulletMode`, `RG.setPhotoMode` | playback |
 | `RG.performSkip` | navigation action |
@@ -83,7 +83,21 @@ optional hook (`RG.refresh && RG.refresh()`) instead of importing the UI.
 - **Runtime fields** (`currentVideoId`, `bulletSegments`, `globalCooldownEnd`,
   `stats`, ...) are never persisted and are reset by `RG.handleNewVideo` when
   the active media changes. `handleNewVideo` is the single place new media is
-  initialised.
+  initialised. `stats` accumulates skip counts, watch time, dwell samples and
+  media progress for the panel until the page reloads.
+
+### Mode semantics (0.4.0)
+
+- `loopSetting` `1` is `1x (No Loop)`. There is no `0`: a stored `0` from an
+  older build is migrated to `1` during state normalisation.
+- `photoSkipMode` `0` is `Off (Keep Photos)`, not a skip mode. Setting it to
+  `0` remembers the previous skipping mode in `rg_last_photo_mode`; toggling
+  the photo tile back on restores that mode.
+- A skipped photo increments `stats.photos` and `stats.total`; it never
+  increments `stats.blocked`.
+- A grid tile body toggles its feature off/on. Its badge opens the full picker.
+  The badge and tile both read the same mode table, so a mode added to
+  `RG.bm` / `RG.lm` / `RG.pm` appears everywhere.
 
 ## The tick
 
@@ -99,6 +113,26 @@ matters and is fixed:
 
 Early `return` after a skip is what keeps cooldowns from stacking. Don't add
 work before step 2; it's the hot path and runs 20x a second.
+
+## Metrics and diagnostics
+
+Session metrics are derived from `RG.S.stats`, never from separate timers:
+
+- `trackWatch` adds the tick delta (capped at 1s) so a backgrounded tab does
+  not create one huge watch-time sample.
+- `handleNewVideo` closes the previous dwell sample (capped at 10 minutes) and
+  starts the next one; the panel adds the live sample while a video is open.
+- The video branch updates `mediaTime` / `mediaDuration` every tick; skip rate
+  is `total / uptime minutes`.
+- Photos and loops are counted where they happen (`countStat('photo')` and the
+  loop replay path), keeping the panel, diagnostics and regression tests on the
+  same source of truth.
+
+The panel renders the folded summary cheaply and only recomputes the metric
+grid when it is expanded. `RG.getDiagnostics()` returns a plain JSON-safe object
+(version, URL, modes, playback, stats, tuning, blocklist, fillers);
+`RG.copyDiagnostics()` copies it through the clipboard API with a hidden
+textarea fallback. Add new diagnostic fields there rather than scraping the DOM.
 
 ## Caching
 
@@ -125,6 +159,14 @@ If you add a probe, cache it the same way or accept the layout cost.
 ## UI conventions
 
 - All UI is prefixed `rg-` and scoped to a panel element; no global CSS.
+- The visual language comes from the archived redgifs.com pages: DM Sans,
+  `#0f0f0f` page and `#191919` card surfaces, white-alpha borders, 12–20px
+  radii, pill buttons and `#ebfa63` as the selected/brand accent. Functional
+  colors (success / warning / error) stay semantic.
+- Both panels share `rg-panel` / `rg-panel-anim` / `rg-card` / `rg-row` /
+  `rg-badge` / `rg-switch` / `rg-icobtn` from the single stylesheet in
+  `40-ui.js`. `RG.ICONS` entries are complete `<svg>` strings; `RG.svg()` also
+  accepts raw inner markup for one-off icons.
 - The panel is built on first use (`RG.ensurePanel`) and rebuilt if it leaves the
   document, so nothing may cache the node — `RG.panel` is a getter for that
   reason. `RG.getOrCreateMenu` follows the same rule for the control center.
@@ -132,9 +174,6 @@ If you add a probe, cache it the same way or accept the layout cost.
   `data-rg-run = RG.runId`. The cleanup only removes untagged leftovers from a
   previous injection; deleting tagged nodes detaches the live panel and the
   panel silently stops updating.
-- Both panels share `rg-panel` / `rg-panel-anim` / `rg-card` / `rg-row` /
-  `rg-badge` / `rg-switch` / `rg-icobtn` from the single stylesheet in
-  `40-ui.js`.
 - The control center is built lazily on first sidebar click (`RG.getOrCreateMenu`)
   and refreshes via an updater array: each widget pushes a function that reads
   state and writes the DOM. State changes never poke the DOM directly — they
@@ -143,6 +182,12 @@ If you add a probe, cache it the same way or accept the layout cost.
   `RG.updateDebugPanel` directly only for user-initiated changes.
 - Position persistence is always `ui.savePos(key)(el)` or
   `ui.clampToViewport(el, key)` so the JSON shape stays `{top, left}`.
+  `ui.drag` invokes `onEnd` immediately if it is called as a value, so pass a
+  function: `onEnd: () => ui.savePos(key)(el)`.
+- Saved positions are authoritative across reopen. `openMenu` auto-positions
+  and dodges the debug panel only on its first open; afterwards it merely
+  clamps an off-screen window back into view. The header reset buttons are the
+  only controls that intentionally re-position a window.
 
 ## Adding a module
 

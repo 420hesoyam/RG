@@ -7,12 +7,16 @@
     const S = RG.S, cfg = RG.cfg;
 
     function countStat(statType, blockedUser) {
-        S.stats.total++;
+        const stats = S.stats;
+        stats.total++;
+        stats.lastSkipAt = Date.now();
+        stats.lastSkipType = statType;
         if (statType === 'blocked') {
-            S.stats.blocked++;
-            if (blockedUser) S.stats.blockedBreakdown[blockedUser] = (S.stats.blockedBreakdown[blockedUser] || 0) + 1;
-        } else if (statType === 'bullet') S.stats.bullet++;
-        else S.stats.standard++;
+            stats.blocked++;
+            if (blockedUser) stats.blockedBreakdown[blockedUser] = (stats.blockedBreakdown[blockedUser] || 0) + 1;
+        } else if (statType === 'bullet') stats.bullet++;
+        else if (statType === 'photo') stats.photos++;
+        else stats.standard++;
     }
 
     const NEXT_SEL = '.nextButton, button[aria-label="Next video"]';

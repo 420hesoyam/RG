@@ -11,6 +11,7 @@
         if (v && Math.abs(v.playbackRate - S.runtimeSpeedTarget) > 0.01) v.playbackRate = S.runtimeSpeedTarget;
     }
     function applyActiveSpeed(val) {
+        val = u.clamp(parseFloat(val) || 1, 0.5, 3);
         S.speedValue = val;
         if (!S.speedRng || !S.isAutoNavEnabled) S.runtimeSpeedTarget = val;
         S.baseSpeed = S.runtimeSpeedTarget;
@@ -20,16 +21,57 @@
     RG.setRate = setRate;
     RG.applyActiveSpeed = applyActiveSpeed;
 
+    /* Central pause/resume so the menu, panel and future hotkeys all restore
+     * normal playback instead of leaving a slowed bullet segment behind. */
+    function setAutoNav(on) {
+        S.isAutoNavEnabled = !!on;
+        RG.st.set('rg_auto_enabled', S.isAutoNavEnabled);
+        if (!S.isAutoNavEnabled) {
+            S.runtimeSpeedTarget = S.speedValue;
+            S.baseSpeed = S.speedValue;
+            S.bulletJumped = false;
+            S.bulletSegments = [];
+            S.bulletSegIdx = 0;
+            S.bulletSegLanded = false;
+            S.bulletTargetTime = 0;
+            S.finishCommitmentStart = 0;
+            const v = RG.getActiveElCached()?.querySelector('video') || document.querySelector('video');
+            setRate(v);
+        }
+        RG.updateDebugPanel && RG.updateDebugPanel();
+        RG.refresh && RG.refresh();
+    }
+    RG.setAutoNav = setAutoNav;
+
     /* -- new media lifecycle --------------------------------------------- */
     const RNG_SEEK = 12;
     const RNG_BULLETS = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11];
 
+    function loopTargetFor(ls) {
+        if (ls === 5) return u.rint(1, 4);
+        if (ls === 11) return RG.mc.binge.cap;
+        if (ls === 14 || ls === 15) return 999;
+        if (ls === 18) return 2;
+        return RG.lm[ls] ? ls : 1;
+    }
+
     function handleNewVideo(id) {
+        const now = Date.now();
         if (id !== S.lastSkippedId && S.globalCooldownEnd > 0 &&
-            Date.now() - S.lastSkipActionTime > cfg.skipCooldown + 200) S.globalCooldownEnd = 0;
+            now - S.lastSkipActionTime > cfg.skipCooldown + 200) S.globalCooldownEnd = 0;
+
+        /* Dwell is measured between media detections, which is the closest
+         * stable proxy for "how long did we actually spend on that item". */
+        if (S.stats.mediaStartedAt > 0) {
+            S.stats.dwellTotalMs += Math.min(now - S.stats.mediaStartedAt, 10 * 60 * 1000);
+            S.stats.dwellSamples++;
+        }
+        S.stats.mediaStartedAt = now;
+        S.stats.mediaTime = 0;
+        S.stats.mediaDuration = 0;
 
         S.currentVideoId = id;
-        S.currentVideoStartTime = Date.now();
+        S.currentVideoStartTime = now;
         S.currentLoop = 1;
         S.lastTimeJump = 0;
         S.previousFrameTime = 0;
@@ -52,15 +94,8 @@
             ? parseFloat(u.rnd(0.75, 2.5).toFixed(2))
             : S.speedValue;
         S.baseSpeed = S.runtimeSpeedTarget;
-        S.loopTimedStart = Date.now();
-
-        const ls = S.loopSetting;
-        if (ls === 5) S.runtimeLoopTarget = u.rint(1, 4);
-        else if (ls === 11) S.runtimeLoopTarget = RG.mc.binge.cap;
-        else if (ls === 14 || ls === 15) S.runtimeLoopTarget = 999;
-        else if (ls === 18) S.runtimeLoopTarget = Math.min(3, Math.max(2, S.lastActiveLoopSetting || 2));
-        else S.runtimeLoopTarget = ls;
-
+        S.loopTimedStart = now;
+        S.runtimeLoopTarget = loopTargetFor(S.loopSetting);
         S.jumpsRemaining = RG.mc.jumpBudget;
     }
     RG.handleNewVideo = handleNewVideo;
@@ -243,6 +278,8 @@
 
     function applyLoopEffects(v) {
         const ls = S.loopSetting;
+        S.stats.loops++;
+        S.finishCommitmentStart = 0;
         if (S.bulletMode > 0) {
             S.bulletSegIdx = 0;
             const f = S.bulletSegments[0];
@@ -257,41 +294,67 @@
             setRate(v);
             const t = Math.min(RG.mc.pass.skipSec, v.duration * 0.15);
             v.currentTime = t;
-            S.previousFrameTime = t;
         } else {
             S.runtimeSpeedTarget = S.baseSpeed;
             setRate(v);
             v.currentTime = 0;
         }
-        S.previousFrameTime = S.previousFrameTime || 0;
+        /* This must follow the seek: isFinished() compares the previous frame
+         * with the current one, and a stale near-end value made the tick treat
+         * the just-restarted replay as already finished (so loops flashed by). */
+        S.previousFrameTime = v.currentTime || 0;
     }
     RG.loopShouldContinue = loopShouldContinue;
     RG.applyLoopEffects = applyLoopEffects;
 
     /* -- mode setters ------------------------------------------------------- */
     function setLoopMode(v) {
+        /* 1 is the table's "no loop" mode. Never store 0: it used to happen
+         * when the grid tile was clicked off and produced "1/0" in the UI. */
+        v = RG.lm[v] ? v : 1;
         S.loopSetting = v;
         if (v > 1) {
-            const cv = v === 18 ? Math.min(3, Math.max(2, S.lastActiveLoopSetting || 2)) : v;
-            S.lastActiveLoopSetting = cv;
-            RG.st.set('rg_last_loop_setting', cv);
+            S.lastActiveLoopSetting = v;
+            RG.st.set('rg_last_loop_setting', v);
         }
+        /* Restart the timed window when one is selected, and keep the visible
+         * counter inside the new target (for example 2/1 -> 1/1 when looping
+         * is turned off mid-replay). */
+        if (v === 14 || v === 15) S.loopTimedStart = Date.now();
+        S.runtimeLoopTarget = loopTargetFor(v);
+        S.currentLoop = Math.max(1, Math.min(S.currentLoop || 1, S.runtimeLoopTarget));
         RG.st.set('rg_loop_setting', v);
-        RG.updateDebugPanel();
+        RG.updateDebugPanel && RG.updateDebugPanel();
     }
     function applyBulletMode(v) {
+        v = RG.bm[v] ? v : 0;
         S.bulletMode = v;
         S.runtimeBulletProfile = v;
+        S.bulletJumped = false;
+        S.bulletSegments = [];
+        S.bulletSegIdx = 0;
+        S.bulletSegLanded = false;
+        S.bulletTargetTime = 0;
+        if (!v) {
+            S.runtimeSpeedTarget = S.baseSpeed || S.speedValue;
+            setRate(RG.getActiveElCached()?.querySelector('video') || document.querySelector('video'));
+        }
         if (v > 0) {
             S.lastActiveBulletMode = v;
             RG.st.set('rg_last_bullet_mode', v);
         }
         RG.st.set('rg_bullet_mode', v);
-        RG.updateDebugPanel();
+        RG.updateDebugPanel && RG.updateDebugPanel();
     }
     function setPhotoMode(v) {
-        S.photoSkipMode = v;
-        RG.st.set('rg_photo_skip_mode', v);
+        S.photoSkipMode = RG.pm[v] ? v : 0;
+        if (S.photoSkipMode > 0) {
+            S.lastActivePhotoMode = S.photoSkipMode;
+            RG.st.set('rg_last_photo_mode', S.lastActivePhotoMode);
+        }
+        RG.st.set('rg_photo_skip_mode', S.photoSkipMode);
+        RG.updateDebugPanel && RG.updateDebugPanel();
+        RG.refresh && RG.refresh();
     }
     RG.setLoopMode = setLoopMode;
     RG.applyBulletMode = applyBulletMode;

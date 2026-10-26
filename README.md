@@ -2,7 +2,9 @@
 
 Tampermonkey userscript that automates navigation on redgifs.com: creative
 bullet-time sequencing, time jumps, loop modes, speed control, and one blocklist
-that handles both creators and feed filler modules.
+that handles both creators and feed filler modules. The CONTROL CENTER and the
+AUTONAV panel use the redgifs.com design system (DM Sans, dark surfaces, pill
+controls, `#ebfa63` accent) and keep their positions across sessions.
 
 ## Install
 
@@ -33,7 +35,7 @@ fix ends up invisible until you re-paste.
   fails when a commit touched `src/` without it.
 
 While testing, point `REPO` in the entry at a tag
-(`.../refs/tags/v0.2.6/...`) so a broken push can't break a working install.
+(`.../refs/tags/v0.4.0/...`) so a broken push can't break a working install.
 raw.githubusercontent serves tags fine.
 
 ## Install (single file, no GitHub)
@@ -56,9 +58,9 @@ src/
   10-dom.js         page probes (active module, media id, creator, fillers), sidebar button
   20-player.js      playback: rate, seek sequencer, rng seek, loop policy, mode setters
   30-skip.js        stats + the actual next-video action
-  40-ui.js          UI kit: icons, stylesheet, show/hide, drag, dropdowns
-  50-panel.js       AUTONAV debug panel
-  60-menu.js        CONTROL CENTER overlay (lazy-built)
+  40-ui.js          UI kit: redgifs design tokens, icons, stylesheet, drag, dropdowns
+  50-panel.js       AUTONAV debug panel + folded stats/metrics + diagnostics
+  60-menu.js        CONTROL CENTER overlay (lazy-built, redgifs theme)
   90-boot.js        listeners + the 50ms tick
 tools/bundle.mjs    dev-only bundler
 tools/regression.test.mjs  regression checks (node, no dependencies)
@@ -83,7 +85,7 @@ modules and the rules for adding one.
 |---|---|
 | Bullet (seek) | Off, Burst, Climax, Mid-Peak, Quad-Hop, RNG Roulette, Slow-Mo Replay, Build-Up Ramp, Trailer Hook, Bullet-Time, Double-Take, Trio-Hop, RNG Seek, Dive Skip, Tail Preview |
 | Loops | 1x, 2x, 3x, RNG (1-4x), Binge (infinite), Timed 30s, Timed 60s, Pass & Skip |
-| Photos | Skip Photos, Instant Skip, Watch 3.5s |
+| Photos | Off (Keep Photos), Instant Skip, Watch 3.5s |
 
 Jump and Bullet used to be separate dropdowns and are now one `Bullet` group:
 RNG Seek is the old chance-based jump, Dive Skip and Tail Preview are the old
@@ -91,7 +93,9 @@ jump seeks. An existing jump setting migrates to the matching profile on the
 first load after the update.
 
 Click a grid tile to toggle it on/off (returns to your last active mode), or
-click its badge to open the full picker.
+click its badge to open the full picker. `Off (Keep Photos)` is photo mode `0`:
+photos stay on screen and are never counted as a skip or a block. Loop mode `1`
+means no loop; a stored loop value of `0` is migrated to `1` on load.
 
 ## Blocklist & fillers
 
@@ -104,17 +108,35 @@ click its badge to open the full picker.
 
 ## Debug panel
 
-The `AUTONAV` panel (top-left) shows live status, speed, media id, loop state
-and skip statistics. Its header carries the running version and the sync /
-reset / close buttons. `@version` in `redgifs.user.js` is the single source of
-truth: the entry passes it to `RG.version` for the panel, and `tools/bundle.mjs`
-injects the same value into the local bundle.
+The `AUTONAV` panel (top-left) shows live status, speed, media id and loop state.
+Two fold-out sections start collapsed so the panel stays compact:
+
+- **Statistics** — total skips with standard / bullet / blocked / photo / loop
+  counts, plus a per-creator blocked breakdown.
+- **Session metrics** — uptime, watch time, skip rate, average dwell, live media
+  progress, cooldown, photos and loops. The header shows uptime while folded.
+
+The header's copy button writes a JSON diagnostics snapshot (version, URL,
+modes, playback state, stats, tuning, blocklist and filler flags). The sync
+button cache-busts and reloads every module; the reset button restores the
+default panel position and close hides the panel.
+
+`@version` in `redgifs.user.js` is the single source of truth: the entry passes
+it to `RG.version` for the panel, and `tools/bundle.mjs` injects the same value
+into the local bundle.
+
+Both the panel and the CONTROL CENTER remember their positions. Opening them
+again restores the saved spot; only the reset buttons (panel header, CONTROL
+CENTER header) put them back at the default location. If the viewport shrinks,
+an off-screen window is pulled back just enough to stay usable.
 
 ## Settings storage
 
 Everything persists in `localStorage` under `rg_*` keys (`rg_bullet_mode`,
-`rg_loop_setting`, `rg_blocked_users`, `rg_mod_cache`, ...). `RG.st` wraps it,
-so a reset is deleting those keys from devtools.
+`rg_loop_setting`, `rg_photo_skip_mode`, `rg_last_photo_mode`,
+`rg_panel_pos`, `rg_menu_pos`, `rg_metrics_expanded`, `rg_blocked_users`,
+`rg_mod_cache`, ...). `RG.st` wraps it, so a reset is deleting those keys from
+devtools. Position and fold state are also restored after a reload.
 
 ## Development
 
@@ -128,8 +150,10 @@ so a reset is deleting those keys from devtools.
 - Regression suite: `node tools/regression.test.mjs` — runs the real modules and
   the real loader in a stub DOM (no dependencies). Covers the first-video cache
   bug, the boot cleanup that used to detach the panel, the entry/module-list
-  contract, the loader's fetch/eval/cache/reload behaviour and the merged seek
-  group.
+  contract, the loader's fetch/eval/cache/reload behaviour, the merged seek
+  group, and the 0.4.0 guards (loop/photo migration, replay seek reset,
+  hydration probes, metrics, XSS-safe blocklist, saved positions and deferred
+  drag saves).
 
 ## License
 
